@@ -56,6 +56,7 @@ export default function HotelCard(props: HotelCardProps) {
     rating,
     review_count,
     amenities,
+    distance_km,
     image_url,
     source,
     booking_url,
@@ -151,6 +152,12 @@ export default function HotelCard(props: HotelCardProps) {
         </div>
 
         {!hasRating && <span className="text-xs text-brand-mid">No reviews yet</span>}
+
+        {typeof distance_km === 'number' && (
+          <span className="text-xs text-brand-mid">
+            {distance_km < 1 ? `${Math.round(distance_km * 1000)} m` : `${distance_km.toFixed(1)} km`} from center
+          </span>
+        )}
 
         {amenities.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mt-auto pt-1">

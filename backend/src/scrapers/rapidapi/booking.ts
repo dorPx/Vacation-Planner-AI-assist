@@ -112,6 +112,9 @@ async function fetchHotels(
       params: {
         dest_id: destId,
         search_type: searchType,
+        // Booking's own "top picks" ranking — without this the API's default
+        // ordering decides which 20 hotels we keep, and that skews expensive.
+        sort_by: 'popularity',
         arrival_date: checkin,
         departure_date: checkout,
         adults: String(adults),

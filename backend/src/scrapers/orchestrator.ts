@@ -8,7 +8,7 @@ import { scrapeHotelsProviders } from './rapidapi/hotels';
 import { scrapeAirbnb } from './rapidapi/airbnb';
 import { scrapeDuffelFlights } from './duffel';
 import { scrapeGooglePlaces } from './google';
-import { fillMissingHotelCoords } from './geocode';
+import { fillMissingHotelCoords, fillHotelDistances } from './geocode';
 import type {
   SearchParams,
   HotelResult,
@@ -167,8 +167,13 @@ export async function runScrapers(params: SearchParams): Promise<CachedPayload> 
 
   // Backfill coordinates for hotels whose source didn't provide them
   // (TripAdvisor), so the map can pin every hotel — results are cached, so
-  // this only costs lookups on the first search for a destination.
-  const hotels = await fillMissingHotelCoords(dedupeHotels(allHotels), destination);
+  // this only costs lookups on the first search for a destination. Then
+  // annotate distance from the destination center (one cached geocode) for
+  // the "Distance from center" sort and card display.
+  const hotels = await fillHotelDistances(
+    await fillMissingHotelCoords(dedupeHotels(allHotels), destination),
+    destination
+  );
 
   return {
     hotels,

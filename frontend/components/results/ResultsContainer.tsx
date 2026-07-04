@@ -84,9 +84,10 @@ export default function ResultsContainer() {
 
 const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: 'best_value', label: 'Our top picks' },
+  { value: 'rating', label: 'Highest rated' },
+  { value: 'distance', label: 'Distance from center' },
   { value: 'price_asc', label: 'Price (lowest first)' },
   { value: 'price_desc', label: 'Price (highest first)' },
-  { value: 'rating', label: 'Best reviewed' },
 ];
 
 function ResultsContainerInner() {

@@ -13,7 +13,7 @@ export interface SearchResults {
   cache_age_minutes: number;
 }
 
-export type SortOption = 'best_value' | 'price_asc' | 'price_desc' | 'rating';
+export type SortOption = 'best_value' | 'price_asc' | 'price_desc' | 'rating' | 'distance';
 
 /** Review-score buckets on the 10-point scale (ratings are stored 0-5; score = rating × 2). */
 export type ReviewScoreBucket = 9 | 8 | 7 | 6;

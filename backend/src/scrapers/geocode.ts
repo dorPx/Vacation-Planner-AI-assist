@@ -69,3 +69,39 @@ export async function fillMissingHotelCoords(hotels: HotelResult[], destination:
   console.log(`[geocode] ${destination}: backfilled ${resolved}/${missing.length} hotel coordinates`);
   return hotels;
 }
+
+// ---------------------------------------------------------------------------
+// Distance from destination center — powers the "Distance from center" sort
+// and the distance line on hotel cards.
+// ---------------------------------------------------------------------------
+
+const EARTH_RADIUS_KM = 6371;
+
+function haversineKm(a: GeocodeLocation, b: GeocodeLocation): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const h =
+    Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * EARTH_RADIUS_KM * Math.asin(Math.sqrt(h));
+}
+
+/**
+ * Annotates hotels with straight-line distance from the destination's
+ * geocoded center. One geocode per search (7-day cached); hotels without
+ * coordinates are left unannotated rather than guessed.
+ */
+export async function fillHotelDistances(hotels: HotelResult[], destination: string): Promise<HotelResult[]> {
+  const center = await geocode(destination);
+  if (!center) return hotels;
+
+  let annotated = 0;
+  for (const hotel of hotels) {
+    if (hotel.lat || hotel.lng) {
+      hotel.distance_km = Math.round(haversineKm(center, { lat: hotel.lat, lng: hotel.lng }) * 10) / 10;
+      annotated++;
+    }
+  }
+  console.log(`[geocode] ${destination}: distance annotated for ${annotated}/${hotels.length} hotels`);
+  return hotels;
+}

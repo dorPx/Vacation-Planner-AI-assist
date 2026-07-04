@@ -27,6 +27,8 @@ export interface HotelResult {
   amenities: string[];
   lat: number;
   lng: number;
+  /** Straight-line distance from the searched destination's center, km. Absent when coords are unknown. */
+  distance_km?: number;
   image_url: string;
   source: string;
   booking_url: string;

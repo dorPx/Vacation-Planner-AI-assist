@@ -130,13 +130,48 @@ export function countActiveFilters(filters: ResultFilters, priceBounds: { min: n
   return n;
 }
 
+/**
+ * "Our top picks" — a recommendation score blending rating, price, and
+ * location, normalized within the current result set so no single expensive
+ * or far-flung outlier dominates. Weights: rating 50%, price 25%, distance
+ * 25%; a missing component's weight is redistributed to rating rather than
+ * penalizing hotels whose source didn't report it.
+ */
+function topPickScores(hotels: HotelResult[]): Map<string, number> {
+  const prices = hotels.map((h) => h.price_per_night).filter((p) => p > 0);
+  const dists = hotels.map((h) => h.distance_km).filter((d): d is number => typeof d === 'number');
+  const priceMax = Math.max(...prices, 1);
+  const priceMin = Math.min(...prices, priceMax);
+  const distMax = Math.max(...dists, 1);
+
+  const scores = new Map<string, number>();
+  for (const h of hotels) {
+    const ratingScore = h.rating / 5;
+    let score = 0;
+    let weightUsed = 0;
+    if (h.price_per_night > 0) {
+      const priceScore = 1 - (h.price_per_night - priceMin) / Math.max(1, priceMax - priceMin);
+      score += 0.25 * priceScore;
+      weightUsed += 0.25;
+    }
+    if (typeof h.distance_km === 'number') {
+      const distScore = 1 - h.distance_km / distMax;
+      score += 0.25 * distScore;
+      weightUsed += 0.25;
+    }
+    score += (1 - weightUsed) * ratingScore;
+    scores.set(h.id, score);
+  }
+  return scores;
+}
+
 export function filterHotels(hotels: HotelResult[], filters: ResultFilters): HotelResult[] {
   const filtered = hotels.filter((h) => matchesAll(groupMatch(h, filters)));
 
   const sorted = [...filtered];
   // Hotels with no price data (price_per_night === 0, e.g. Google Places
   // results) sort to the END for both price directions — "$0" leading a
-  // cheapest-first list reads as broken.
+  // cheapest-first list reads as broken. Same treatment for unknown distance.
   const priceOrUnknown = (h: HotelResult, direction: 1 | -1) =>
     h.price_per_night > 0 ? h.price_per_night * direction : Number.MAX_SAFE_INTEGER;
   switch (filters.sortBy) {
@@ -149,13 +184,16 @@ export function filterHotels(hotels: HotelResult[], filters: ResultFilters): Hot
     case 'rating':
       sorted.sort((a, b) => b.rating - a.rating);
       break;
-    case 'best_value':
-      sorted.sort((a, b) => {
-        const valueA = a.price_per_night > 0 ? a.rating / a.price_per_night : 0;
-        const valueB = b.price_per_night > 0 ? b.rating / b.price_per_night : 0;
-        return valueB - valueA;
-      });
+    case 'distance':
+      sorted.sort(
+        (a, b) => (a.distance_km ?? Number.MAX_SAFE_INTEGER) - (b.distance_km ?? Number.MAX_SAFE_INTEGER)
+      );
       break;
+    case 'best_value': {
+      const scores = topPickScores(sorted);
+      sorted.sort((a, b) => (scores.get(b.id) ?? 0) - (scores.get(a.id) ?? 0));
+      break;
+    }
   }
 
   return sorted;
