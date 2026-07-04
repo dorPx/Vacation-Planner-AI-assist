@@ -1,0 +1,25 @@
+# VCS / editor
+.git
+.gitignore
+
+# Secrets — must never enter a build context
+.mcp.json
+backend/.env
+frontend/.env.local
+
+# Docs — not needed in the image
+*.md
+docs
+
+# Reinstalled / rebuilt inside the image, not copied from host
+node_modules
+backend/node_modules
+frontend/node_modules
+backend/dist
+frontend/.next
+
+# Mutable data — mounted as a volume, not baked into the image
+vacation.db
+
+npm-debug.log*
+.DS_Store

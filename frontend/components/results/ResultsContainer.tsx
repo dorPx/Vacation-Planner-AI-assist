@@ -1,0 +1,353 @@
+'use client';
+
+import { Suspense, useCallback, useMemo, useState } from 'react';
+import dynamic from 'next/dynamic';
+import { useSearchParams } from 'next/navigation';
+import { useSearch } from '@/context/SearchContext';
+import type { HotelResult } from '../../../shared/types';
+import ResultsTabs, { type ResultsTab } from './ResultsTabs';
+import HotelCard from './HotelCard';
+import ActivityCard from './ActivityCard';
+import FlightCard from './FlightCard';
+import RestaurantCard from './RestaurantCard';
+import ComparisonTable from './ComparisonTable';
+import ToastViewport from './ToastViewport';
+import { Spinner } from './shared';
+import { usePricePolling } from './usePricePolling';
+import { filterHotels, filterByRatingAndSource, countActiveFilters } from './filters';
+import type { SortOption } from '@/context/SearchContext';
+import MapToggle from '@/components/map/MapToggle';
+import FilterSidebar from './FilterSidebar';
+import ErrorBoundary from '@/components/ErrorBoundary';
+
+const MAX_COMPARE = 4;
+
+// Leaflet's successor (Google Maps JS) touches `window` — never SSR this.
+const TravelMap = dynamic(() => import('@/components/map/TravelMap'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-full min-h-[400px] flex items-center justify-center bg-sky-100 rounded-xl border border-beige-300">
+      <Spinner />
+    </div>
+  ),
+});
+
+function SkeletonRow() {
+  return (
+    <div className="bg-white border border-beige-300 rounded-xl overflow-hidden flex flex-col sm:flex-row">
+      <div className="h-44 sm:h-auto sm:w-60 shrink-0 animate-shimmer" />
+      <div className="flex-1 p-4 space-y-3">
+        <div className="h-4 w-2/3 rounded animate-shimmer" />
+        <div className="h-3 w-1/3 rounded animate-shimmer" />
+        <div className="h-3 w-1/2 rounded animate-shimmer" />
+      </div>
+      <div className="sm:w-48 p-4 space-y-3">
+        <div className="h-6 w-20 sm:ml-auto rounded animate-shimmer" />
+        <div className="h-8 w-full rounded-lg animate-shimmer" />
+        <div className="h-8 w-full rounded-lg animate-shimmer" />
+      </div>
+    </div>
+  );
+}
+
+function SkeletonList() {
+  return (
+    <div className="max-w-7xl mx-auto px-4 py-8">
+      <div className="flex flex-col gap-3 max-w-4xl mx-auto">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <SkeletonRow key={i} />
+        ))}
+      </div>
+      <p className="text-center text-sm text-brand-mid mt-6">
+        Checking live prices across Booking.com, TripAdvisor &amp; Google…
+      </p>
+    </div>
+  );
+}
+
+/** Wraps a card with the staggered fade-in-and-slide-up entrance animation. */
+function Staggered({ index, children }: { index: number; children: React.ReactNode }) {
+  return (
+    <div className="animate-card-in" style={{ animationDelay: `${Math.min(index, 12) * 40}ms` }}>
+      {children}
+    </div>
+  );
+}
+
+export default function ResultsContainer() {
+  return (
+    <Suspense fallback={null}>
+      <ResultsContainerInner />
+    </Suspense>
+  );
+}
+
+const SORT_OPTIONS: { value: SortOption; label: string }[] = [
+  { value: 'best_value', label: 'Our top picks' },
+  { value: 'price_asc', label: 'Price (lowest first)' },
+  { value: 'price_desc', label: 'Price (highest first)' },
+  { value: 'rating', label: 'Best reviewed' },
+];
+
+function ResultsContainerInner() {
+  const { results, loading, error, banner, lastParams, setResults, filters, setFilters } = useSearch();
+  const searchParams = useSearchParams();
+  const showMap = searchParams.get('map') === '1';
+
+  const [compareList, setCompareList] = useState<HotelResult[]>([]);
+  const [priceDrops, setPriceDrops] = useState<Record<string, number>>({});
+  const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
+
+  const toggleCompare = useCallback((hotel: HotelResult) => {
+    setCompareList((prev) => {
+      const exists = prev.some((h) => h.id === hotel.id);
+      if (exists) return prev.filter((h) => h.id !== hotel.id);
+      if (prev.length >= MAX_COMPARE) return prev;
+      return [...prev, hotel];
+    });
+  }, []);
+
+  const removeFromCompare = useCallback((id: string) => {
+    setCompareList((prev) => prev.filter((h) => h.id !== id));
+  }, []);
+
+  const clearCompare = useCallback(() => setCompareList([]), []);
+
+  const handlePriceChange = useCallback(
+    (updatedHotels: HotelResult[], changes: Array<{ id: string; old_price: number; new_price: number }>) => {
+      if (!results) return;
+      setResults({ ...results, hotels: updatedHotels });
+      setPriceDrops((prev) => {
+        const next = { ...prev };
+        for (const change of changes) {
+          if (change.new_price < change.old_price) next[change.id] = change.old_price;
+        }
+        return next;
+      });
+      setCompareList((prev) => prev.map((h) => updatedHotels.find((u) => u.id === h.id) ?? h));
+    },
+    [results, setResults]
+  );
+
+  usePricePolling(lastParams, results?.hotels ?? [], handlePriceChange);
+
+  const filtered = useMemo(() => {
+    if (!results) return null;
+    return {
+      hotels: filterHotels(results.hotels, filters),
+      activities: filterByRatingAndSource(results.activities, filters),
+      restaurants: filterByRatingAndSource(results.restaurants, filters),
+      flights: results.flights,
+    };
+  }, [results, filters]);
+
+  const activeFilterCount = useMemo(() => {
+    const prices = (results?.hotels ?? []).map((h) => h.price_per_night).filter((p) => p > 0);
+    const bounds = prices.length
+      ? { min: Math.floor(Math.min(...prices)), max: Math.ceil(Math.max(...prices)) }
+      : { min: 0, max: 2000 };
+    return countActiveFilters(filters, bounds);
+  }, [results, filters]);
+
+  const tabs: ResultsTab[] = useMemo(() => {
+    if (!filtered) return [];
+
+    // In map mode the list shares the row with the map — tighten grids so
+    // cards don't get crushed into slivers.
+    const placeGrid = showMap
+      ? 'grid grid-cols-1 xl:grid-cols-2 gap-4'
+      : 'grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4';
+
+    const tabList: ResultsTab[] = [
+      {
+        id: 'hotels',
+        label: 'Hotels',
+        count: filtered.hotels.length,
+        content: (
+          <div className="flex flex-col gap-3">
+            {filtered.hotels.map((h, i) => (
+              <Staggered key={h.id} index={i}>
+                <HotelCard
+                  {...h}
+                  selected={compareList.some((c) => c.id === h.id)}
+                  onSelect={() => toggleCompare(h)}
+                  onCompare={() => toggleCompare(h)}
+                  previousPrice={priceDrops[h.id]}
+                  stacked={showMap}
+                />
+              </Staggered>
+            ))}
+            {filtered.hotels.length === 0 && (
+              <p className="text-sm text-brand-mid py-8 text-center">No hotels match the current filters.</p>
+            )}
+          </div>
+        ),
+      },
+      {
+        id: 'activities',
+        label: 'Activities',
+        count: filtered.activities.length,
+        content: (
+          <div className={placeGrid}>
+            {filtered.activities.map((a, i) => (
+              <Staggered key={a.id} index={i}>
+                <ActivityCard {...a} />
+              </Staggered>
+            ))}
+          </div>
+        ),
+      },
+      {
+        id: 'restaurants',
+        label: 'Restaurants',
+        count: filtered.restaurants.length,
+        content: (
+          <div className={placeGrid}>
+            {filtered.restaurants.map((r, i) => (
+              <Staggered key={r.id} index={i}>
+                <RestaurantCard {...r} />
+              </Staggered>
+            ))}
+          </div>
+        ),
+      },
+    ];
+
+    // A permanently-empty "Flights (0)" tab reads as broken; flights only
+    // exist when the user gave an origin, so only surface the tab then.
+    if (filtered.flights.length > 0) {
+      tabList.splice(1, 0, {
+        id: 'flights',
+        label: 'Flights',
+        count: filtered.flights.length,
+        content: (
+          <div className="flex flex-col gap-3">
+            {filtered.flights.map((f, i) => (
+              <Staggered key={f.id} index={i}>
+                <FlightCard {...f} />
+              </Staggered>
+            ))}
+          </div>
+        ),
+      });
+    }
+
+    return tabList;
+  }, [filtered, showMap, compareList, priceDrops, toggleCompare]);
+
+  if (loading) return <SkeletonList />;
+
+  if (error) {
+    return (
+      <div className="max-w-5xl mx-auto px-4 py-8">
+        <div className="bg-white border border-beige-300 rounded-xl px-4 py-3 text-sm text-red-600">{error}</div>
+      </div>
+    );
+  }
+
+  if (!results || !filtered) return null;
+
+  const totalCount = results.hotels.length + results.flights.length + results.activities.length + results.restaurants.length;
+
+  if (totalCount === 0) {
+    return (
+      <div className="max-w-5xl mx-auto px-4 py-20 text-center">
+        <p className="text-lg font-medium text-brand-black mb-2">No results found</p>
+        <p className="text-sm text-brand-mid">Try a different destination, or widen your dates and budget.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`max-w-7xl mx-auto px-4 pt-6 ${compareList.length >= 2 ? 'pb-72' : 'pb-10'}`}>
+      {banner && (
+        <div className="mb-4 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg px-3 py-2">{banner}</div>
+      )}
+
+      {/* Results header: what + where on the left, sort + view controls on the right */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-bold text-brand-black">
+            {lastParams?.destination ?? 'Results'}
+            <span className="font-normal text-brand-mid">
+              : {filtered.hotels.length} propert{filtered.hotels.length === 1 ? 'y' : 'ies'} found
+            </span>
+          </h2>
+          {results.cached && (
+            <p className="text-xs text-brand-mid mt-0.5">
+              Prices checked {results.cache_age_minutes} minute{results.cache_age_minutes === 1 ? '' : 's'} ago
+            </p>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="flex items-center gap-1.5 border border-beige-300 bg-white rounded-lg pl-3 pr-2 py-1.5">
+            <span className="text-xs font-medium text-brand-mid whitespace-nowrap">Sort by:</span>
+            <select
+              value={filters.sortBy}
+              onChange={(e) => setFilters({ ...filters, sortBy: e.target.value as SortOption })}
+              className="text-xs font-semibold text-brand-black bg-transparent focus:outline-none cursor-pointer"
+            >
+              {SORT_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            onClick={() => setFilterDrawerOpen(true)}
+            className="lg:hidden text-xs font-medium border border-beige-300 bg-white hover:bg-beige-100 text-brand-black px-3 py-1.5 rounded-lg transition-colors"
+          >
+            Filters
+            {activeFilterCount > 0 && (
+              <span className="ml-1.5 inline-flex items-center justify-center bg-sky-400 text-white text-[10px] font-bold rounded-full min-w-[1.1rem] h-[1.1rem] px-1">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+          <MapToggle />
+        </div>
+      </div>
+
+      {/* Filters rail + results column, both in normal document flow */}
+      <div className="mt-4 flex items-start gap-6">
+        <FilterSidebar open={filterDrawerOpen} onClose={() => setFilterDrawerOpen(false)} />
+
+        <div className="flex-1 min-w-0">
+          {showMap ? (
+            <div className="flex flex-col xl:flex-row gap-4 items-start">
+              <div className="w-full xl:w-[48%] h-[45vh] xl:h-[calc(100vh-160px)] xl:sticky xl:top-20 shrink-0">
+                <ErrorBoundary label="TravelMap">
+                  {/* Top 20 of the current filter + sort selection — the list is
+                      already ordered by the sidebar's sort, so slicing keeps the
+                      map focused on the best matches instead of 40+ pins. */}
+                  <TravelMap
+                    hotels={filtered.hotels.slice(0, 20)}
+                    activities={filtered.activities}
+                    restaurants={filtered.restaurants}
+                  />
+                </ErrorBoundary>
+              </div>
+              <div className="w-full xl:w-[52%] min-w-0">
+                <ResultsTabs tabs={tabs} />
+              </div>
+            </div>
+          ) : (
+            <ResultsTabs tabs={tabs} />
+          )}
+        </div>
+      </div>
+
+      {compareList.length >= 2 && (
+        <div className="fixed bottom-0 inset-x-0 z-40 bg-white border-t border-beige-300 shadow-2xl">
+          <div className="max-w-7xl mx-auto px-4 py-3">
+            <ComparisonTable hotels={compareList} onRemove={removeFromCompare} onClear={clearCompare} />
+          </div>
+        </div>
+      )}
+
+      <ToastViewport />
+    </div>
+  );
+}

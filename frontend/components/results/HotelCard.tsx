@@ -1,0 +1,228 @@
+'use client';
+
+import { useState } from 'react';
+import type { HotelResult } from '../../../shared/types';
+import { AmenityChip } from './shared';
+import { useSearch } from '@/context/SearchContext';
+
+export interface HotelCardProps extends HotelResult {
+  selected: boolean;
+  onSelect: () => void;
+  onCompare: () => void;
+  /** Prior price, if the live-price poller detected a drop — renders the "Price dropped!" badge. */
+  previousPrice?: number;
+  /**
+   * Force the vertical (mobile) layout regardless of viewport. Used in map
+   * mode, where the list column is narrow but the viewport is wide — Tailwind
+   * breakpoints can't see container width, so the horizontal row layout would
+   * crush the title to one letter per line.
+   */
+  stacked?: boolean;
+}
+
+function sourceLabel(source: string): string {
+  if (/booking/i.test(source)) return 'Booking.com';
+  if (/tripadvisor/i.test(source)) return 'TripAdvisor';
+  // Check the more specific "-provider" variant before the plain one, since
+  // "hotels.com-provider" would otherwise also match a generic /hotels\.com/ test.
+  if (/hotels\.com-provider/i.test(source)) return 'Hotels.com Provider';
+  if (/hotels\.com/i.test(source)) return 'Hotels.com';
+  if (/airbnb/i.test(source)) return 'Airbnb';
+  if (/google/i.test(source)) return 'Google';
+  return source;
+}
+
+// Booking.com's review vocabulary, on our normalized 0-5 scale (score ≈ rating × 2).
+function scoreWord(rating: number): string {
+  if (rating >= 4.5) return 'Wonderful';
+  if (rating >= 4.0) return 'Very good';
+  if (rating >= 3.5) return 'Good';
+  if (rating >= 3.0) return 'Pleasant';
+  return 'Rated';
+}
+
+function nightsBetween(checkin?: string, checkout?: string): number {
+  if (!checkin || !checkout) return 0;
+  const ms = new Date(checkout).getTime() - new Date(checkin).getTime();
+  if (Number.isNaN(ms) || ms <= 0) return 0;
+  return Math.round(ms / 86400000);
+}
+
+export default function HotelCard(props: HotelCardProps) {
+  const {
+    id,
+    name,
+    price_per_night,
+    rating,
+    review_count,
+    amenities,
+    image_url,
+    source,
+    booking_url,
+    selected,
+    onSelect,
+    onCompare,
+    previousPrice,
+    stacked = false,
+  } = props;
+
+  const { setHoveredHotelId, lastParams } = useSearch();
+  const [imgError, setImgError] = useState(false);
+  const showImage = image_url && !imgError;
+  const hasPrice = price_per_night > 0;
+  const hasRating = rating > 0;
+  const priceDropped = hasPrice && typeof previousPrice === 'number' && previousPrice > price_per_night;
+
+  // Booking.com prices the whole stay: "$1,432 · 7 nights, 2 adults".
+  const nights = nightsBetween(lastParams?.checkin, lastParams?.checkout);
+  const adults = lastParams?.adults ?? 2;
+  const totalPrice = nights > 0 ? price_per_night * nights : price_per_night;
+
+  function handleViewDeal() {
+    if (booking_url) window.open(booking_url, '_blank', 'noopener,noreferrer');
+  }
+
+  return (
+    <article
+      id={`hotel-card-${id}`}
+      onMouseEnter={() => setHoveredHotelId(id)}
+      onMouseLeave={() => setHoveredHotelId(null)}
+      className={`bg-white rounded-xl border border-beige-300 overflow-hidden hover:shadow-lg transition-shadow flex scroll-mt-36 ${
+        stacked ? 'flex-col' : 'flex-col sm:flex-row'
+      }`}
+    >
+      {/* Photo */}
+      <button
+        type="button"
+        onClick={onSelect}
+        aria-label={`Select ${name}`}
+        className={`relative block w-full h-44 shrink-0 text-left ${stacked ? '' : 'sm:h-auto sm:w-52 md:w-60'}`}
+      >
+        {showImage ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={image_url}
+            alt={name}
+            loading="lazy"
+            className="absolute inset-0 w-full h-full object-cover"
+            onError={() => setImgError(true)}
+          />
+        ) : (
+          <div className="absolute inset-0 bg-sky-100 flex items-center justify-center">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-sky-300" aria-hidden="true">
+              <path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6" />
+            </svg>
+          </div>
+        )}
+        <span className="absolute bottom-2 left-2 bg-white/90 text-[10px] font-medium text-brand-dark px-2 py-0.5 rounded-full shadow">
+          {sourceLabel(source)}
+        </span>
+      </button>
+
+      {/* Details: title + review block on the first row, booking.com-style */}
+      <div className="flex-1 min-w-0 p-4 flex flex-col gap-2">
+        <div className="flex items-start justify-between gap-3">
+          {booking_url ? (
+            <a
+              href={booking_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-base font-bold text-sky-400 hover:text-sky-500 hover:underline leading-snug line-clamp-2 min-w-0"
+            >
+              {name}
+            </a>
+          ) : (
+            <h3 className="text-base font-bold text-brand-black leading-snug line-clamp-2 min-w-0">{name}</h3>
+          )}
+
+          {hasRating && (
+            <div className="flex items-start gap-2 shrink-0">
+              <div className="text-right leading-tight">
+                <p className="text-sm font-semibold text-brand-dark">{scoreWord(rating)}</p>
+                {review_count > 0 && (
+                  <p className="text-xs text-brand-mid">{review_count.toLocaleString()} reviews</p>
+                )}
+              </div>
+              <span className="inline-flex items-center justify-center bg-sky-400 text-white text-sm font-bold rounded-md rounded-bl-none px-1.5 py-1 min-w-[2.1rem]">
+                {rating.toFixed(1)}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {!hasRating && <span className="text-xs text-brand-mid">No reviews yet</span>}
+
+        {amenities.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-auto pt-1">
+            {amenities.slice(0, 4).map((a) => (
+              <AmenityChip key={a} label={a} />
+            ))}
+            {amenities.length > 4 && (
+              <span className="text-[11px] text-brand-mid self-center">+{amenities.length - 4} more</span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Price + actions rail */}
+      <div
+        className={`shrink-0 p-4 flex items-center justify-between gap-3 border-beige-200 ${
+          stacked
+            ? 'border-t'
+            : 'sm:w-52 sm:pl-2 sm:flex-col sm:items-end sm:text-right sm:justify-end border-t sm:border-t-0'
+        }`}
+      >
+        <div className={`flex flex-col ${stacked ? '' : 'sm:items-end'}`}>
+          {priceDropped && (
+            <span className={`animate-price-flash inline-block self-start text-[11px] font-semibold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full mb-1 ${stacked ? '' : 'sm:self-end'}`}>
+              Price dropped!
+            </span>
+          )}
+          {hasPrice ? (
+            <>
+              {nights > 0 && (
+                <span className="text-xs text-brand-mid">
+                  {nights} night{nights === 1 ? '' : 's'}, {adults} adult{adults === 1 ? '' : 's'}
+                </span>
+              )}
+              <div className={`flex items-baseline gap-1.5 ${stacked ? '' : 'sm:justify-end'}`}>
+                {priceDropped && nights > 0 && (
+                  <span className="text-sm text-brand-mid line-through">${(previousPrice! * nights).toFixed(0)}</span>
+                )}
+                <span className="text-2xl font-bold text-brand-black">${totalPrice.toFixed(0)}</span>
+              </div>
+              <span className="text-xs text-brand-mid">
+                {nights > 0 ? `$${price_per_night.toFixed(0)} per night` : 'per night'}
+              </span>
+            </>
+          ) : (
+            <span className="text-sm text-brand-mid italic">Price unavailable</span>
+          )}
+        </div>
+
+        <div className={`flex gap-2 w-auto ${stacked ? '' : 'sm:flex-col sm:w-full'}`}>
+          <button
+            type="button"
+            onClick={handleViewDeal}
+            disabled={!booking_url}
+            className="bg-sky-400 hover:bg-sky-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors whitespace-nowrap"
+          >
+            See availability
+          </button>
+          <button
+            type="button"
+            onClick={onCompare}
+            aria-pressed={selected}
+            className={`text-sm font-semibold px-4 py-2 rounded-lg border transition-colors whitespace-nowrap ${
+              selected
+                ? 'bg-brand-black text-white border-brand-black'
+                : 'bg-white text-brand-black border-beige-300 hover:border-brand-black'
+            }`}
+          >
+            {selected ? 'Comparing ✓' : 'Compare'}
+          </button>
+        </div>
+      </div>
+    </article>
+  );
+}

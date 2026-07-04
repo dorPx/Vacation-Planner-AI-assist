@@ -1,0 +1,123 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-primary: #378ADD;
+  --color-primary-dark: #185FA5;
+  --color-beige: #F5F0E8;
+  --color-surface: #FFFFFF;
+  --color-muted: #5F5E5A;
+}
+
+@layer base {
+  body {
+    @apply bg-beige-100 text-brand-black font-sans antialiased;
+  }
+}
+
+/* Map marker hover-highlight, triggered from useMapSync when a hotel card is hovered */
+@keyframes marker-bounce {
+  0%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-10px); }
+  50% { transform: translateY(0); }
+  70% { transform: translateY(-5px); }
+}
+
+.marker-bounce {
+  animation: marker-bounce 0.6s ease-in-out;
+  z-index: 1000 !important;
+}
+
+/* Random-trip reveal confetti, used by components/itinerary/shared.tsx */
+@keyframes confetti-fall {
+  0% { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(220px) rotate(360deg); opacity: 0; }
+}
+
+.confetti-piece {
+  position: absolute;
+  top: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  animation: confetti-fall 1.8s ease-in forwards;
+}
+
+/* Dual-handle price range slider (FilterSidebar) — two overlapping native
+   range inputs; only the thumb itself is interactive so they don't fight
+   each other for drag events. */
+.range-thumb {
+  pointer-events: none;
+}
+.range-thumb::-webkit-slider-thumb {
+  pointer-events: auto;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: #378ADD;
+  border: 2px solid white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+}
+.range-thumb::-moz-range-thumb {
+  pointer-events: auto;
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: #378ADD;
+  border: 2px solid white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+}
+.range-thumb::-webkit-slider-runnable-track {
+  background: transparent;
+}
+.range-thumb::-moz-range-track {
+  background: transparent;
+}
+
+/* Skeleton loading shimmer (replaces plain pulse for card skeletons) */
+@keyframes shimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, #EDE5D5 25%, #F5F0E8 37%, #EDE5D5 63%);
+  background-size: 400% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* Card entrance: fade in + slide up, staggered per-card via inline animationDelay */
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-card-in {
+  animation: cardIn 0.4s ease both;
+}
+
+/* Tab content fade transition */
+@keyframes tabFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-tab-fade {
+  animation: tabFadeIn 0.25s ease both;
+}
+
+/* Price-drop badge flash — finite animation auto-plays once on mount */
+@keyframes price-flash {
+  0% { background-color: #86efac; }
+  100% { background-color: #d1fae5; }
+}
+
+.animate-price-flash {
+  animation: price-flash 1s ease-out;
+}

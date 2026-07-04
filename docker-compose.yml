@@ -1,0 +1,41 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "4000:4000"
+    env_file:
+      # Optional so a fresh clone can `docker compose up` before configuring —
+      # sources without keys fail soft. Create it from backend/.env.example.
+      - path: backend/.env
+        required: false
+    environment:
+      PORT: 4000
+      # Overrides whatever's in backend/.env — required so the compiled
+      # __dirname-based DB path (which breaks once code moves under dist/)
+      # is bypassed. See DOCKER_SETUP.md for the matching db.ts change.
+      DB_PATH: /data/vacation.db
+    volumes:
+      - vacation-db:/data
+      # Alternative: bind-mount the real repo-root file instead of a named
+      # volume, if you want to inspect/copy vacation.db directly from the
+      # host with a SQLite browser:
+      # - ./vacation.db:/data/vacation.db
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
+        NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  vacation-db:
