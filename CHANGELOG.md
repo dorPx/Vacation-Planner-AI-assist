@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Added — Ignav as a fourth flight source
+- **Ignav flight fares** ([ignav.com](https://ignav.com)) now join Google Flights,
+  Sky-Scrapper, and Duffel in the flights pipeline. Origin free-text is resolved to an
+  airport code via Ignav's `/api/airports`, round-trip fares are fetched in USD, and the
+  results are normalized and merged/deduplicated with the other sources. Gated on an
+  origin (like the other flight sources) and fully fail-soft — a missing `IGNAV_API_KEY`
+  or any upstream error drops Ignav and never the search. Exposed at `/api/health` and the
+  dev dashboard's `/api/health/test/ignav`. Ignav is **flights only** — it carries no
+  hotel or lodging data.
+
 ### Added — 10 features (currency, weather, history, sharing, dark mode & more)
 - **Currency switcher.** A header dropdown shows every price in EUR, GBP, JPY, ILS,
   AUD, or CAD using keyless ECB rates (frankfurter.app, cached 12h, new

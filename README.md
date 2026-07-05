@@ -12,7 +12,8 @@ the result.
   review-score buckets with live counts, amenities, source) and sorting, plus a
   **"Load more hotels"** button that pages in 20 more Booking.com results at a time
   (filters and sort preserved)
-- **Flights** (optional "flying from" field) via Google Flights / Sky Scrapper / Duffel
+- **Flights** (optional "flying from" field) via Google Flights / Sky Scrapper / Duffel /
+  Ignav — all merged and deduplicated into one flight list
 - **Activities & restaurants** from Google Places and TripAdvisor
 - **Ranking that recommends, not upsells** — the default "top picks" sort blends rating,
   price, and distance from center; sort also by highest rated, distance, or price
@@ -121,6 +122,7 @@ npm run dev        # backend :4000 + frontend :3000 via concurrently
 | `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | Frontend: the interactive map | Same console; enable **Maps JavaScript API**. Can be the same key or (better) a separate one |
 | `APIFY_API_KEY` | Google Places crawler for activities/restaurants | [apify.com](https://apify.com) → Settings → API tokens |
 | `DUFFEL_API_KEY` | Flight offers | [duffel.com](https://duffel.com) — a `duffel_test_` key returns realistic synthetic offers |
+| `IGNAV_API_KEY` | Flight fares (an extra flight source; **flights only**, no hotels) | [ignav.com](https://ignav.com) — free tier is 1,000 requests; leave blank to disable |
 | `NEXT_PUBLIC_API_URL` | Where the browser reaches the backend | `http://localhost:4000` unless you moved it |
 | `PORT`, `CACHE_TTL_SECONDS`, `CORS_ORIGIN`, `OPENROUTER_FALLBACK_MODEL` | Optional tuning | Sensible defaults in code |
 

@@ -7,6 +7,7 @@ import { scrapeFlights, dedupeFlights } from './rapidapi/flights';
 import { scrapeHotelsProviders } from './rapidapi/hotels';
 import { scrapeAirbnb } from './rapidapi/airbnb';
 import { scrapeDuffelFlights } from './duffel';
+import { scrapeIgnavFlights } from './ignav';
 import { scrapeGooglePlaces } from './google';
 import { fillMissingHotelCoords, fillHotelDistances } from './geocode';
 import { recordHotelPrices } from '../services/priceHistory.service';
@@ -132,7 +133,7 @@ export async function runScrapers(params: SearchParams): Promise<CachedPayload> 
   const { destination, checkin, checkout, origin, adults, children, rooms } = params;
   const occupancy = { adults, children, rooms };
 
-  const [apifyRes, rapidApiRes, bookingRapidRes, hotelsProvidersRes, airbnbRes, googleRes, flightsRes, duffelRes] = await Promise.allSettled([
+  const [apifyRes, rapidApiRes, bookingRapidRes, hotelsProvidersRes, airbnbRes, googleRes, flightsRes, duffelRes, ignavRes] = await Promise.allSettled([
     scrapeBooking(destination, checkin, checkout),
     scrapeTripAdvisor(destination, checkin, checkout),
     scrapeBookingHotels(destination, checkin, checkout, occupancy),
@@ -142,6 +143,7 @@ export async function runScrapers(params: SearchParams): Promise<CachedPayload> 
     // Flights need an origin — without one there's nothing meaningful to search for.
     origin ? scrapeFlights(origin, destination, checkin, checkout) : Promise.resolve([]),
     origin ? scrapeDuffelFlights(origin, destination, checkin, checkout) : Promise.resolve([]),
+    origin ? scrapeIgnavFlights(origin, destination, checkin, checkout) : Promise.resolve([]),
   ]);
 
   const ap = apifyRes.status === 'fulfilled' ? apifyRes.value : [];
@@ -152,6 +154,7 @@ export async function runScrapers(params: SearchParams): Promise<CachedPayload> 
   const gp = googleRes.status === 'fulfilled' ? googleRes.value : { hotels: [], activities: [], restaurants: [] };
   const fl = flightsRes.status === 'fulfilled' ? flightsRes.value : [];
   const df = duffelRes.status === 'fulfilled' ? duffelRes.value : [];
+  const ig = ignavRes.status === 'fulfilled' ? ignavRes.value : [];
 
   if (apifyRes.status === 'rejected') console.error('[orchestrator] apify failed:', apifyRes.reason);
   if (rapidApiRes.status === 'rejected') console.error('[orchestrator] rapidapi/tripadvisor failed:', rapidApiRes.reason);
@@ -161,6 +164,7 @@ export async function runScrapers(params: SearchParams): Promise<CachedPayload> 
   if (googleRes.status === 'rejected') console.error('[orchestrator] google failed:', googleRes.reason);
   if (flightsRes.status === 'rejected') console.error('[orchestrator] rapidapi/flights failed:', flightsRes.reason);
   if (duffelRes.status === 'rejected') console.error('[orchestrator] duffel failed:', duffelRes.reason);
+  if (ignavRes.status === 'rejected') console.error('[orchestrator] ignav failed:', ignavRes.reason);
 
   const allHotels = [...ap, ...ra.hotels, ...br, ...hp, ...ab, ...gp.hotels];
   const allActivities = [...ra.activities, ...gp.activities];
@@ -183,7 +187,7 @@ export async function runScrapers(params: SearchParams): Promise<CachedPayload> 
   return {
     hotels,
     activities: dedupeByName(allActivities),
-    flights: dedupeFlights([...fl, ...df]),
+    flights: dedupeFlights([...fl, ...df, ...ig]),
     restaurants: dedupeByName(allRestaurants),
     cached_at: Date.now(),
   };

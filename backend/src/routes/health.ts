@@ -25,6 +25,7 @@ import { scrapeFlights } from '../scrapers/rapidapi/flights';
 import { scrapeHotels4, scrapeHotelsComProvider } from '../scrapers/rapidapi/hotels';
 import { scrapeAirbnb } from '../scrapers/rapidapi/airbnb';
 import { scrapeDuffelFlights } from '../scrapers/duffel';
+import { scrapeIgnavFlights } from '../scrapers/ignav';
 import { scrapeGooglePlaces } from '../scrapers/google';
 
 const router = Router();
@@ -205,6 +206,20 @@ async function checkDuffel(): Promise<boolean> {
   }
 }
 
+async function checkIgnav(): Promise<boolean> {
+  if (!process.env.IGNAV_API_KEY) return false;
+  try {
+    const res = await axios.get('https://ignav.com/api/airports', {
+      params: { q: 'Paris', limit: 1 },
+      headers: { 'X-Api-Key': process.env.IGNAV_API_KEY },
+      timeout: CHECK_TIMEOUT_MS,
+    });
+    return res.status === 200;
+  } catch {
+    return false;
+  }
+}
+
 async function checkGoogle(): Promise<boolean> {
   try {
     const res = await axios.post(
@@ -262,6 +277,7 @@ router.get('/', async (_req: Request, res: Response) => {
     rapidapi_hotels_com_provider,
     rapidapi_airbnb,
     duffel,
+    ignav,
     google,
   ] = await Promise.all([
     checkOpenRouter(),
@@ -273,6 +289,7 @@ router.get('/', async (_req: Request, res: Response) => {
     checkRapidApiHotelsComProvider(),
     checkRapidApiAirbnb(),
     checkDuffel(),
+    checkIgnav(),
     checkGoogle(),
   ]);
 
@@ -289,6 +306,7 @@ router.get('/', async (_req: Request, res: Response) => {
     rapidapi_hotels_com_provider,
     rapidapi_airbnb,
     duffel,
+    ignav,
     google,
     sqlite,
     cache: cacheOk,
@@ -408,6 +426,18 @@ router.get('/test/duffel', async (req: Request, res: Response) => {
   const { checkin, checkout } = defaultDateRange();
   try {
     const flights = await scrapeDuffelFlights(origin, destination, checkin, checkout);
+    return res.json({ count: flights.length, breakdown: { flights: flights.length }, sample: flights[0] ?? null });
+  } catch (err: unknown) {
+    return res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+router.get('/test/ignav', async (req: Request, res: Response) => {
+  const origin = (req.query.origin as string) || 'New York';
+  const destination = (req.query.destination as string) || 'Paris';
+  const { checkin, checkout } = defaultDateRange();
+  try {
+    const flights = await scrapeIgnavFlights(origin, destination, checkin, checkout);
     return res.json({ count: flights.length, breakdown: { flights: flights.length }, sample: flights[0] ?? null });
   } catch (err: unknown) {
     return res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
