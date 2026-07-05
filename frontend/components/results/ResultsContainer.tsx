@@ -20,7 +20,9 @@ import { useFavorites } from '@/context/FavoritesContext';
 import { DEFAULT_FILTERS, type SortOption } from '@/context/SearchContext';
 import MapToggle from '@/components/map/MapToggle';
 import FilterSidebar from './FilterSidebar';
+import SearchSummaryBar from './SearchSummaryBar';
 import ErrorBoundary from '@/components/ErrorBoundary';
+import { distinctSourceLabels } from '@/lib/sourceLabel';
 
 const MAX_COMPARE = 4;
 
@@ -93,7 +95,7 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
 ];
 
 function ResultsContainerInner() {
-  const { results, loading, error, banner, lastParams, setResults, filters, setFilters } = useSearch();
+  const { results, loading, error, banner, lastParams, setResults, filters, setFilters, updateParams } = useSearch();
   const { favoriteIds, count: savedCount } = useFavorites();
   const searchParams = useSearchParams();
   const showMap = searchParams.get('map') === '1';
@@ -153,6 +155,17 @@ function ResultsContainerInner() {
       : { min: 0, max: 2000 };
     return countActiveFilters(filters, bounds);
   }, [results, filters]);
+
+  // Which providers actually contributed to these results (honest attribution).
+  const sourceLabels = useMemo(
+    () =>
+      distinctSourceLabels([
+        ...(results?.hotels ?? []),
+        ...(results?.activities ?? []),
+        ...(results?.restaurants ?? []),
+      ]),
+    [results]
+  );
 
   const tabs: ResultsTab[] = useMemo(() => {
     if (!filtered) return [];
@@ -277,7 +290,19 @@ function ResultsContainerInner() {
   if (error) {
     return (
       <div className="max-w-5xl mx-auto px-4 py-8">
-        <div className="bg-white border border-beige-300 rounded-xl px-4 py-3 text-sm text-red-600">{error}</div>
+        <div className="bg-white border border-beige-300 rounded-xl px-4 py-4">
+          <p className="text-sm text-red-600 mb-3">{error}</p>
+          {lastParams && (
+            <button
+              type="button"
+              onClick={() => updateParams({})}
+              disabled={loading}
+              className="bg-sky-400 hover:bg-sky-500 disabled:opacity-60 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
+            >
+              {loading ? 'Retrying…' : 'Try again'}
+            </button>
+          )}
+        </div>
       </div>
     );
   }
@@ -297,6 +322,7 @@ function ResultsContainerInner() {
 
   return (
     <div className={`max-w-7xl mx-auto px-4 pt-6 ${compareList.length >= 2 ? 'pb-72' : 'pb-10'}`}>
+      <SearchSummaryBar stayCount={filtered.hotels.length} />
       {banner && (
         <div className="mb-4 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg px-3 py-2">{banner}</div>
       )}
@@ -310,6 +336,9 @@ function ResultsContainerInner() {
               : {filtered.hotels.length} propert{filtered.hotels.length === 1 ? 'y' : 'ies'} found
             </span>
           </h2>
+          {sourceLabels.length > 0 && (
+            <p className="text-xs text-brand-mid mt-0.5">Comparing across {sourceLabels.join(' · ')}</p>
+          )}
           {results.cached && (
             <p className="text-xs text-brand-mid mt-0.5">
               Prices checked {results.cache_age_minutes} minute{results.cache_age_minutes === 1 ? '' : 's'} ago

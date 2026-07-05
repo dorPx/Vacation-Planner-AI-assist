@@ -40,6 +40,10 @@ function readSearchFromUrl(): SearchParams | null {
 
 const AMENITIES = ['WiFi', 'Pool', 'Gym', 'Breakfast', 'Parking', 'Pet-friendly'];
 
+// Shown as one-click quick-search chips on the empty hero (before any search,
+// and only when the visitor has no recent searches yet).
+const POPULAR_DESTINATIONS = ['Paris', 'Tokyo', 'New York', 'Barcelona', 'Rome', 'Lisbon'];
+
 function addDays(dateStr: string, days: number): string {
   const d = new Date(dateStr);
   d.setDate(d.getDate() + days);
@@ -145,7 +149,7 @@ function Stepper({
 }
 
 export default function SearchBar() {
-  const { setResults, setLoading, setError, loading, setLastParams } = useSearch();
+  const { results, setResults, setLoading, setError, loading, setLastParams } = useSearch();
   const { selectedModel } = useModel();
   const { recent, record } = useRecentSearches();
 
@@ -165,6 +169,8 @@ export default function SearchBar() {
 
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  // Keyboard-highlighted suggestion index; -1 = none (mouse hover only).
+  const [activeIndex, setActiveIndex] = useState(-1);
 
   const [showMoreFilters, setShowMoreFilters] = useState(false);
   const [ratingMin, setRatingMin] = useState<number | undefined>(undefined);
@@ -185,7 +191,10 @@ export default function SearchBar() {
     }
 
     debounceRef.current = setTimeout(() => {
-      api.autocomplete(destination).then((list) => setSuggestions(list));
+      api.autocomplete(destination).then((list) => {
+        setSuggestions(list);
+        setActiveIndex(-1);
+      });
     }, 300);
 
     return () => {
@@ -242,10 +251,12 @@ export default function SearchBar() {
 
     setError('');
     setLoading(true);
+    // Record the attempted params up front so the error state's "Try again"
+    // (which re-runs lastParams) works even when this attempt fails.
+    setLastParams(params);
     try {
       const data = await api.search(params);
       setResults(data);
-      setLastParams(params);
       // Persist to URL + recent list + title only once we know the search ran.
       writeSearchToUrl(params);
       record(params);
@@ -274,6 +285,37 @@ export default function SearchBar() {
     runSearch(fromUrl);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  function handleDestinationKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (!showSuggestions || suggestions.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveIndex((i) => (i + 1) % suggestions.length);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveIndex((i) => (i <= 0 ? suggestions.length - 1 : i - 1));
+    } else if (e.key === 'Enter' && activeIndex >= 0) {
+      // Choose the highlighted suggestion instead of submitting raw text.
+      e.preventDefault();
+      setDestination(suggestions[activeIndex]);
+      setShowSuggestions(false);
+      setActiveIndex(-1);
+    } else if (e.key === 'Escape') {
+      setShowSuggestions(false);
+      setActiveIndex(-1);
+    }
+  }
+
+  // Quick-search a popular destination: fills default dates if none set
+  // (same fallback window as Surprise Me) and runs immediately.
+  function applyDestination(city: string) {
+    const ci = checkin || addDays(new Date().toISOString().slice(0, 10), 30);
+    const co = checkout || addDays(ci, duration);
+    setDestination(city);
+    if (!checkin) setCheckin(ci);
+    if (!checkout) setCheckout(co);
+    runSearch({ destination: city, checkin: ci, checkout: co, adults, children, rooms });
+  }
 
   function applyRecent(r: RecentSearch) {
     setDestination(r.destination);
@@ -370,9 +412,17 @@ export default function SearchBar() {
               onChange={(e) => setDestination(e.target.value)}
               onFocus={() => setShowSuggestions(true)}
               onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+              onKeyDown={handleDestinationKeyDown}
               placeholder="Where are you going?"
               title={destination || undefined}
               aria-label="Destination"
+              id="destination-input"
+              role="combobox"
+              aria-expanded={showSuggestions && suggestions.length > 0}
+              aria-controls="destination-listbox"
+              aria-autocomplete="list"
+              aria-activedescendant={activeIndex >= 0 ? `destination-option-${activeIndex}` : undefined}
+              autoComplete="off"
               className="w-full h-full bg-transparent text-sm font-medium text-brand-black placeholder:text-brand-mid focus:outline-none"
               required
             />
@@ -388,20 +438,28 @@ export default function SearchBar() {
             )}
           </div>
           {showSuggestions && suggestions.length > 0 && (
-            <ul className="absolute z-20 mt-1.5 w-full min-w-[280px] bg-white border border-beige-300 rounded-lg shadow-xl max-h-72 overflow-y-auto py-1">
-              {suggestions.map((s) => {
+            <ul
+              id="destination-listbox"
+              role="listbox"
+              className="absolute z-20 mt-1.5 w-full min-w-[280px] bg-white border border-beige-300 rounded-lg shadow-xl max-h-72 overflow-y-auto py-1"
+            >
+              {suggestions.map((s, i) => {
                 const commaAt = s.indexOf(',');
                 const primary = commaAt === -1 ? s : s.slice(0, commaAt);
                 const secondary = commaAt === -1 ? '' : s.slice(commaAt + 1).trim();
+                const active = i === activeIndex;
                 return (
-                  <li key={s}>
+                  <li key={s} id={`destination-option-${i}`} role="option" aria-selected={active}>
                     <button
                       type="button"
+                      onMouseEnter={() => setActiveIndex(i)}
                       onMouseDown={() => {
                         setDestination(s);
                         setShowSuggestions(false);
                       }}
-                      className="w-full text-left px-3 py-2.5 hover:bg-beige-100 transition-colors flex items-start gap-2.5"
+                      className={`w-full text-left px-3 py-2.5 transition-colors flex items-start gap-2.5 ${
+                        active ? 'bg-beige-100' : 'hover:bg-beige-100'
+                      }`}
                     >
                       <span className="text-brand-mid mt-0.5 shrink-0">
                         <PinIcon />
@@ -614,7 +672,9 @@ export default function SearchBar() {
       )}
     </form>
 
-      {recent.length > 0 && (
+      {/* Quick chips — only before a search runs, to keep the results view clean.
+          Returning visitors see their recent searches; new ones see popular picks. */}
+      {!results && recent.length > 0 && (
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <span className="text-xs font-medium text-brand-dark/70">Recent:</span>
           {recent.map((r) => (
@@ -630,6 +690,26 @@ export default function SearchBar() {
                 <path d="M12 7v5l3 2" />
               </svg>
               <span className="truncate">{r.destination.split(',')[0]}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {!results && recent.length === 0 && (
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-brand-dark/70">Popular:</span>
+          {POPULAR_DESTINATIONS.map((city) => (
+            <button
+              key={city}
+              type="button"
+              onClick={() => applyDestination(city)}
+              className="inline-flex items-center gap-1.5 bg-white/80 hover:bg-white border border-beige-300 rounded-full px-3 py-1 text-xs font-medium text-brand-dark transition-colors"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                <path d="M12 21s-7-6.1-7-11a7 7 0 0 1 14 0c0 4.9-7 11-7 11Z" />
+                <circle cx="12" cy="10" r="2.5" />
+              </svg>
+              {city}
             </button>
           ))}
         </div>

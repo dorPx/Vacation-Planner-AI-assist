@@ -19,9 +19,13 @@ the result.
   price-drop badges
 - **Save hotels** to a wishlist (persisted locally) with a saved-only view toggle
 - **Shareable, refresh-safe searches** — the search lives in the URL and rehydrates on
-  reload; recent searches are one click away, and applied filters show as removable chips
-- **Accessible** — keyboard-visible focus rings and full `prefers-reduced-motion` support
-  (WCAG 2.1 AA)
+  reload; recent searches and popular destinations are one click away, and applied
+  filters show as removable chips
+- **Fast, resilient search UX** — fully keyboard-navigable destination autocomplete, a
+  "Try again" retry on failed searches, provider attribution on results, and a sticky
+  search-summary bar on scroll
+- **Accessible** — keyboard-visible focus rings, ARIA combobox autocomplete, and full
+  `prefers-reduced-motion` support (WCAG 2.1 AA)
 - **AI itinerary builder** — streams a day-by-day, budget-constrained itinerary over SSE
   using the real scraped prices (OpenRouter, model selectable in the UI)
 - **Supplementary AI trip planner** — a second AI source (RapidAPI) whose day plans are

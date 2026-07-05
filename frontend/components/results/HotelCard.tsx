@@ -5,6 +5,7 @@ import type { HotelResult } from '../../../shared/types';
 import { AmenityChip } from './shared';
 import { useSearch } from '@/context/SearchContext';
 import { useFavorites } from '@/context/FavoritesContext';
+import { sourceLabel } from '@/lib/sourceLabel';
 
 export interface HotelCardProps extends HotelResult {
   selected: boolean;
@@ -19,18 +20,6 @@ export interface HotelCardProps extends HotelResult {
    * crush the title to one letter per line.
    */
   stacked?: boolean;
-}
-
-function sourceLabel(source: string): string {
-  if (/booking/i.test(source)) return 'Booking.com';
-  if (/tripadvisor/i.test(source)) return 'TripAdvisor';
-  // Check the more specific "-provider" variant before the plain one, since
-  // "hotels.com-provider" would otherwise also match a generic /hotels\.com/ test.
-  if (/hotels\.com-provider/i.test(source)) return 'Hotels.com Provider';
-  if (/hotels\.com/i.test(source)) return 'Hotels.com';
-  if (/airbnb/i.test(source)) return 'Airbnb';
-  if (/google/i.test(source)) return 'Google';
-  return source;
 }
 
 // Booking.com's review vocabulary, on our normalized 0-5 scale (score ≈ rating × 2).

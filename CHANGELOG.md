@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+### Added — 5 more UX improvements (search speed, clarity, resilience)
+- **Keyboard-navigable destination search.** The autocomplete dropdown is now fully
+  operable with the keyboard — arrow keys move the highlight, Enter selects, Escape
+  closes — with proper ARIA combobox semantics (WCAG 2.1 AA).
+- **Popular-destination quick chips.** New visitors see one-click city chips on the
+  hero to start a search instantly; returning visitors see their recent searches
+  instead. Both clear away once results are showing.
+- **Retry on a failed search.** A network or provider error now shows a "Try again"
+  button that re-runs the search, instead of dead-ending.
+- **Source attribution.** The results header names the providers that actually
+  contributed ("Comparing across Booking.com · Google …") — honest-data transparency.
+- **Sticky search summary.** Scrolling into results reveals a compact bar with the
+  active search (destination · dates · guests · count) and an "Edit" jump back to the
+  search form.
+
 ### Added — 5 UX improvements
 - **Shareable & refresh-safe searches.** The active search (destination, dates,
   occupancy) is written to the URL, so a search survives a page reload and can be
