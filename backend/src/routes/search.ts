@@ -14,6 +14,9 @@ import {
   makeCacheKey,
 } from '../scrapers/orchestrator';
 import { rapidApiHeaders } from '../scrapers/rapidapi/client';
+import { scrapeBookingHotels } from '../scrapers/rapidapi/booking';
+import { fillHotelDistances } from '../scrapers/geocode';
+import type { HotelResult } from '../../../shared/types';
 
 const router = Router();
 
@@ -139,6 +142,50 @@ router.post('/', async (req: Request, res: Response) => {
     return res.json(result);
   } catch (err: unknown) {
     return res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/search/more — "Load more" hotel pagination
+// Fetches the next Booking.com results page (20 hotels, same "top picks"
+// order and occupancy as the original search) and annotates distances. Only
+// Booking paginates; other sources contributed their full sets on page 1.
+// Fail-soft: any upstream error returns an empty list, never a 5xx.
+// ---------------------------------------------------------------------------
+
+const MORE_CACHE_TTL_SECONDS = 3 * 60 * 60; // match the main search cache window
+
+router.post('/more', async (req: Request, res: Response) => {
+  const { destination, checkin, checkout, adults, children, rooms, page } = req.body as SearchParams & {
+    page?: number;
+  };
+
+  if (!destination || !checkin || !checkout) {
+    return res.status(400).json({
+      error: 'Missing required fields: destination, checkin, checkout are all required.',
+    });
+  }
+
+  // Page 1 belongs to the main search; "more" starts at 2.
+  const pageNum = Math.max(2, Math.round(Number(page) || 2));
+  const cacheKey = `search-more:${destination.toLowerCase()}:${checkin}:${checkout}:${adults ?? 2}:${children ?? 0}:${rooms ?? 1}:${pageNum}`;
+
+  const cached = cache.get<HotelResult[]>(cacheKey);
+  if (cached) {
+    console.log(`[search/more] cache hit: ${cacheKey}`);
+    return res.json({ hotels: cached, page: pageNum });
+  }
+
+  try {
+    const hotels = await scrapeBookingHotels(destination, checkin, checkout, { adults, children, rooms }, pageNum);
+    await fillHotelDistances(hotels, destination);
+    cache.set(cacheKey, hotels, MORE_CACHE_TTL_SECONDS);
+    console.log(`[search/more] ${destination} page ${pageNum}: ${hotels.length} hotels`);
+    return res.json({ hotels, page: pageNum });
+  } catch (err: unknown) {
+    // Supplementary pagination — degrade to "no more results" rather than erroring.
+    console.error('[search/more] failed:', err instanceof Error ? err.message : err);
+    return res.json({ hotels: [], page: pageNum });
   }
 });
 

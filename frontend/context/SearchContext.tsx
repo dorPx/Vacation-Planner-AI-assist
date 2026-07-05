@@ -68,6 +68,8 @@ interface SearchContextValue {
   /** Client-side filters applied to the cached results — never trigger a re-fetch. */
   filters: ResultFilters;
   setFilters: (filters: ResultFilters) => void;
+  /** Appends "Load more" hotels to the current results without resetting filters. */
+  appendHotels: (more: HotelResult[]) => void;
 }
 
 const SearchContext = createContext<SearchContextValue | undefined>(undefined);
@@ -87,6 +89,12 @@ export function SearchProvider({ children }: { children: ReactNode }) {
   const setResults = useCallback((next: SearchResults | null) => {
     setResultsState(next);
     setFilters(DEFAULT_FILTERS);
+  }, []);
+
+  // "Load more" pagination: merges extra hotels into the CURRENT result set
+  // without resetting the user's filters (unlike setResults). Callers dedupe.
+  const appendHotels = useCallback((more: HotelResult[]) => {
+    setResultsState((prev) => (prev && more.length ? { ...prev, hotels: [...prev.hotels, ...more] } : prev));
   }, []);
 
   const runSearch = useCallback(
@@ -154,6 +162,7 @@ export function SearchProvider({ children }: { children: ReactNode }) {
         setHoveredHotelId,
         filters,
         setFilters,
+        appendHotels,
       }}
     >
       {children}

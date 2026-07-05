@@ -9,7 +9,9 @@ the result.
 
 - **Multi-source hotel search** — Booking.com, Hotels.com, Airbnb, TripAdvisor, and Google
   Places, deduplicated and normalized, with booking.com-style filters (budget slider,
-  review-score buckets with live counts, amenities, source) and sorting
+  review-score buckets with live counts, amenities, source) and sorting, plus a
+  **"Load more hotels"** button that pages in 20 more Booking.com results at a time
+  (filters and sort preserved)
 - **Flights** (optional "flying from" field) via Google Flights / Sky Scrapper / Duffel
 - **Activities & restaurants** from Google Places and TripAdvisor
 - **Ranking that recommends, not upsells** — the default "top picks" sort blends rating,

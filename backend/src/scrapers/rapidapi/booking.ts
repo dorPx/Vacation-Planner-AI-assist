@@ -102,7 +102,8 @@ async function fetchHotels(
   destination: string,
   checkin: string,
   checkout: string,
-  occupancy: Occupancy
+  occupancy: Occupancy,
+  page: number
 ): Promise<HotelResult[]> {
   const adults = occupancy.adults ?? 2;
   const rooms = occupancy.rooms ?? 1;
@@ -122,7 +123,7 @@ async function fetchHotels(
         // The API prices children by age; we only collect a count, so assume
         // school-age (8) per child — the standard OTA default when age is unknown.
         ...(children > 0 ? { children_age: Array(children).fill('8').join(',') } : {}),
-        page_number: '1',
+        page_number: String(page),
         currency_code: 'USD',
       },
       headers: rapidApiHeaders(HOST),
@@ -144,7 +145,9 @@ export async function scrapeBookingHotels(
   destination: string,
   checkin: string,
   checkout: string,
-  occupancy: Occupancy = {}
+  occupancy: Occupancy = {},
+  /** Result page (20 hotels each, "top picks" order) — page 2+ powers "Load more". */
+  page = 1
 ): Promise<HotelResult[]> {
   const dest = await resolveDestination(destination);
   if (!dest?.dest_id || !dest.search_type) {
@@ -152,7 +155,7 @@ export async function scrapeBookingHotels(
     return [];
   }
 
-  const hotels = await fetchHotels(dest.dest_id, dest.search_type, destination, checkin, checkout, occupancy);
+  const hotels = await fetchHotels(dest.dest_id, dest.search_type, destination, checkin, checkout, occupancy, page);
   console.log(`[rapidapi/booking] ${destination}: ${hotels.length} hotels`);
   return hotels;
 }

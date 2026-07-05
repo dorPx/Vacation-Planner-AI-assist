@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
 import { useSearch } from '@/context/SearchContext';
@@ -23,6 +23,7 @@ import FilterSidebar from './FilterSidebar';
 import SearchSummaryBar from './SearchSummaryBar';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { distinctSourceLabels } from '@/lib/sourceLabel';
+import { api } from '@/lib/api';
 
 const MAX_COMPARE = 4;
 
@@ -95,7 +96,8 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
 ];
 
 function ResultsContainerInner() {
-  const { results, loading, error, banner, lastParams, setResults, filters, setFilters, updateParams } = useSearch();
+  const { results, loading, error, banner, lastParams, setResults, filters, setFilters, updateParams, appendHotels } =
+    useSearch();
   const { favoriteIds, count: savedCount } = useFavorites();
   const searchParams = useSearchParams();
   const showMap = searchParams.get('map') === '1';
@@ -104,6 +106,38 @@ function ResultsContainerInner() {
   const [priceDrops, setPriceDrops] = useState<Record<string, number>>({});
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   const [showSavedOnly, setShowSavedOnly] = useState(false);
+
+  // "Load more" pagination — page 1 is the main search; more starts at 2.
+  const [morePage, setMorePage] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [moreExhausted, setMoreExhausted] = useState(false);
+
+  // A fresh search resets pagination.
+  useEffect(() => {
+    setMorePage(1);
+    setMoreExhausted(false);
+  }, [lastParams]);
+
+  const handleLoadMore = useCallback(async () => {
+    if (!lastParams || !results || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const nextPage = morePage + 1;
+      const more = await api.loadMoreHotels({ ...lastParams, page: nextPage });
+      // Dedupe against everything already shown — by id and (cross-source) by name.
+      const ids = new Set(results.hotels.map((h) => h.id));
+      const names = new Set(results.hotels.map((h) => h.name.toLowerCase().trim()));
+      const fresh = more.filter((h) => !ids.has(h.id) && !names.has(h.name.toLowerCase().trim()));
+      if (fresh.length === 0) {
+        setMoreExhausted(true);
+      } else {
+        appendHotels(fresh);
+        setMorePage(nextPage);
+      }
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [lastParams, results, loadingMore, morePage, appendHotels]);
 
   const toggleCompare = useCallback((hotel: HotelResult) => {
     setCompareList((prev) => {
@@ -230,6 +264,24 @@ function ResultsContainerInner() {
                 )}
               </div>
             )}
+            {/* Load more — hotels only; hidden in saved-only view (that's a
+                fixed local set) and once Booking's pages are exhausted. */}
+            {!showSavedOnly && visibleHotels.length > 0 && (
+              <div className="py-3 text-center">
+                {moreExhausted ? (
+                  <p className="text-sm text-brand-mid">You&apos;ve seen all available hotels for this search.</p>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleLoadMore}
+                    disabled={loadingMore}
+                    className="bg-white border border-sky-400 text-sky-500 hover:bg-sky-50 disabled:opacity-60 disabled:cursor-wait text-sm font-semibold px-6 py-2.5 rounded-lg transition-colors"
+                  >
+                    {loadingMore ? 'Loading more hotels…' : 'Load more hotels'}
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         ),
       },
@@ -283,7 +335,7 @@ function ResultsContainerInner() {
     }
 
     return tabList;
-  }, [filtered, showMap, compareList, priceDrops, toggleCompare, showSavedOnly, favoriteIds, activeFilterCount, filters, setFilters]);
+  }, [filtered, showMap, compareList, priceDrops, toggleCompare, showSavedOnly, favoriteIds, activeFilterCount, filters, setFilters, loadingMore, moreExhausted, handleLoadMore]);
 
   if (loading) return <SkeletonList />;
 

@@ -68,6 +68,17 @@ export const api = {
   // Full orchestrated search — POST /api/search
   search: (params: SearchParams) => post<SearchResults>('/api/search', params),
 
+  // Next page of Booking.com hotels for "Load more" — fail-soft: any error
+  // reads as "no more results" so the button never breaks the page.
+  loadMoreHotels: async (params: SearchParams & { page: number }): Promise<HotelResult[]> => {
+    try {
+      const data = await post<{ hotels: HotelResult[] }>('/api/search/more', params);
+      return Array.isArray(data.hotels) ? data.hotels : [];
+    } catch {
+      return [];
+    }
+  },
+
   // Lightweight destination autocomplete — GET /api/search?q=
   autocomplete: async (query: string): Promise<string[]> => {
     if (!query.trim()) return [];

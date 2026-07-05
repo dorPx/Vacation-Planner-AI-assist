@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Added — "Load more" hotel pagination
+- A **Load more hotels** button at the bottom of the hotel list fetches the next
+  Booking.com results page (20 hotels per page, same "top picks" ordering and
+  occupancy as the original search), annotates distance from center, and merges
+  them into the current results — preserving active filters and sort, deduplicating
+  by id and name. When a page returns nothing new, the button is replaced with
+  "You've seen all available hotels for this search." Backed by a new
+  `POST /api/search/more` endpoint (cached 3h, fail-soft: errors read as
+  "no more results", never a 5xx).
+
 ### Added — 5 more UX improvements (search speed, clarity, resilience)
 - **Keyboard-navigable destination search.** The autocomplete dropdown is now fully
   operable with the keyboard — arrow keys move the highlight, Enter selects, Escape
