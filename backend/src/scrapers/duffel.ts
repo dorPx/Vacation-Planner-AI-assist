@@ -30,7 +30,7 @@ interface DuffelPlace {
   name?: string;
 }
 
-async function resolveIata(query: string): Promise<string | null> {
+export async function resolveIata(query: string): Promise<string | null> {
   const trimmed = query.trim();
   // Already an IATA code ("JFK", "nyc") — use it directly.
   if (/^[A-Za-z]{3}$/.test(trimmed)) return trimmed.toUpperCase();

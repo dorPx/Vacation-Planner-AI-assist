@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { scrapeFlights, dedupeFlights } from '../scrapers/rapidapi/flights';
 import { scrapeDuffelFlights } from '../scrapers/duffel';
 import { scrapeIgnavFlights } from '../scrapers/ignav';
+import { scrapeSkyscannerFlights } from '../scrapers/apifySkyscanner';
 import { cache } from '../db';
 import type { FlightResult } from '../../../shared/types';
 
@@ -48,16 +49,18 @@ router.post('/search', async (req: Request, res: Response) => {
 
   const bookingUrl = googleFlightsLink(origin, destination, depart, ret);
 
-  const [rapid, duffel, ignav] = await Promise.allSettled([
+  const [rapid, duffel, ignav, skyscanner] = await Promise.allSettled([
     scrapeFlights(origin, destination, depart, returnDate),
     scrapeDuffelFlights(origin, destination, depart, returnDate),
     scrapeIgnavFlights(origin, destination, depart, returnDate),
+    scrapeSkyscannerFlights(origin, destination, depart, returnDate),
   ]);
 
   const merged = dedupeFlights([
     ...(rapid.status === 'fulfilled' ? rapid.value : []),
     ...(duffel.status === 'fulfilled' ? duffel.value : []),
     ...(ignav.status === 'fulfilled' ? ignav.value : []),
+    ...(skyscanner.status === 'fulfilled' ? skyscanner.value : []),
   ])
     .map((f) => ({ ...f, booking_url: f.booking_url || bookingUrl }))
     .sort((a, b) => (a.price || Number.MAX_SAFE_INTEGER) - (b.price || Number.MAX_SAFE_INTEGER));

@@ -26,6 +26,8 @@ import { scrapeHotels4, scrapeHotelsComProvider } from '../scrapers/rapidapi/hot
 import { scrapeAirbnb } from '../scrapers/rapidapi/airbnb';
 import { scrapeDuffelFlights } from '../scrapers/duffel';
 import { scrapeIgnavFlights } from '../scrapers/ignav';
+import { scrapeSkyscannerFlights } from '../scrapers/apifySkyscanner';
+import { scrapeApifyTripAdvisor } from '../scrapers/apifyTripadvisor';
 import { scrapeLiteApiHotels } from '../scrapers/liteapi';
 import { scrapeGooglePlaces } from '../scrapers/google';
 
@@ -467,6 +469,34 @@ router.get('/test/liteapi', async (req: Request, res: Response) => {
   try {
     const hotels = await scrapeLiteApiHotels(destination, checkin, checkout, { adults: 2 });
     return res.json({ count: hotels.length, breakdown: { hotels: hotels.length }, sample: hotels[0] ?? null });
+  } catch (err: unknown) {
+    return res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+router.get('/test/apify-skyscanner', async (req: Request, res: Response) => {
+  const origin = (req.query.origin as string) || 'New York';
+  const destination = (req.query.destination as string) || 'Paris';
+  const { checkin, checkout } = defaultDateRange();
+  try {
+    const flights = await scrapeSkyscannerFlights(origin, destination, checkin, checkout);
+    return res.json({ count: flights.length, breakdown: { flights: flights.length }, sample: flights[0] ?? null });
+  } catch (err: unknown) {
+    return res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+router.get('/test/apify-tripadvisor', async (req: Request, res: Response) => {
+  const destination = (req.query.destination as string) || 'Paris';
+  const { checkin, checkout } = defaultDateRange();
+  try {
+    const r = await scrapeApifyTripAdvisor(destination, checkin, checkout);
+    const all = [...r.hotels, ...r.activities, ...r.restaurants];
+    return res.json({
+      count: all.length,
+      breakdown: { hotels: r.hotels.length, activities: r.activities.length, restaurants: r.restaurants.length },
+      sample: all[0] ?? null,
+    });
   } catch (err: unknown) {
     return res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }

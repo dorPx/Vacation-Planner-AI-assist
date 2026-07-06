@@ -8,6 +8,8 @@ import { scrapeHotelsProviders } from './rapidapi/hotels';
 import { scrapeAirbnb } from './rapidapi/airbnb';
 import { scrapeDuffelFlights } from './duffel';
 import { scrapeIgnavFlights } from './ignav';
+import { scrapeSkyscannerFlights } from './apifySkyscanner';
+import { scrapeApifyTripAdvisor } from './apifyTripadvisor';
 import { scrapeLiteApiHotels } from './liteapi';
 import { scrapeGooglePlaces } from './google';
 import { fillMissingHotelCoords, fillHotelDistances } from './geocode';
@@ -134,7 +136,7 @@ export async function runScrapers(params: SearchParams): Promise<CachedPayload> 
   const { destination, checkin, checkout, origin, adults, children, rooms } = params;
   const occupancy = { adults, children, rooms };
 
-  const [apifyRes, rapidApiRes, bookingRapidRes, hotelsProvidersRes, airbnbRes, liteApiRes, googleRes, flightsRes, duffelRes, ignavRes] = await Promise.allSettled([
+  const [apifyRes, rapidApiRes, bookingRapidRes, hotelsProvidersRes, airbnbRes, liteApiRes, googleRes, flightsRes, duffelRes, ignavRes, skyscannerRes] = await Promise.allSettled([
     scrapeBooking(destination, checkin, checkout),
     scrapeTripAdvisor(destination, checkin, checkout),
     scrapeBookingHotels(destination, checkin, checkout, occupancy),
@@ -146,6 +148,7 @@ export async function runScrapers(params: SearchParams): Promise<CachedPayload> 
     origin ? scrapeFlights(origin, destination, checkin, checkout) : Promise.resolve([]),
     origin ? scrapeDuffelFlights(origin, destination, checkin, checkout) : Promise.resolve([]),
     origin ? scrapeIgnavFlights(origin, destination, checkin, checkout) : Promise.resolve([]),
+    origin ? scrapeSkyscannerFlights(origin, destination, checkin, checkout) : Promise.resolve([]),
   ]);
 
   const ap = apifyRes.status === 'fulfilled' ? apifyRes.value : [];
@@ -158,6 +161,7 @@ export async function runScrapers(params: SearchParams): Promise<CachedPayload> 
   const fl = flightsRes.status === 'fulfilled' ? flightsRes.value : [];
   const df = duffelRes.status === 'fulfilled' ? duffelRes.value : [];
   const ig = ignavRes.status === 'fulfilled' ? ignavRes.value : [];
+  const sk = skyscannerRes.status === 'fulfilled' ? skyscannerRes.value : [];
 
   if (apifyRes.status === 'rejected') console.error('[orchestrator] apify failed:', apifyRes.reason);
   if (rapidApiRes.status === 'rejected') console.error('[orchestrator] rapidapi/tripadvisor failed:', rapidApiRes.reason);
@@ -169,6 +173,7 @@ export async function runScrapers(params: SearchParams): Promise<CachedPayload> 
   if (flightsRes.status === 'rejected') console.error('[orchestrator] rapidapi/flights failed:', flightsRes.reason);
   if (duffelRes.status === 'rejected') console.error('[orchestrator] duffel failed:', duffelRes.reason);
   if (ignavRes.status === 'rejected') console.error('[orchestrator] ignav failed:', ignavRes.reason);
+  if (skyscannerRes.status === 'rejected') console.error('[orchestrator] apify/skyscanner failed:', skyscannerRes.reason);
 
   // LiteAPI first: it's the accuracy-first source (real content + live rates),
   // so it becomes the base record in dedupeHotels — its name/photo/rating win,
@@ -195,7 +200,7 @@ export async function runScrapers(params: SearchParams): Promise<CachedPayload> 
   return {
     hotels,
     activities: dedupeByName(allActivities),
-    flights: dedupeFlights([...fl, ...df, ...ig]),
+    flights: dedupeFlights([...fl, ...df, ...ig, ...sk]),
     restaurants: dedupeByName(allRestaurants),
     cached_at: Date.now(),
   };
@@ -214,6 +219,45 @@ function scheduleBackgroundRefresh(key: string, params: SearchParams): void {
       console.log(`[orchestrator] background refresh complete for key ${key}`);
     } catch (err: unknown) {
       console.error('[orchestrator] background refresh failed:', err instanceof Error ? err.message : err);
+    }
+  });
+}
+
+// ---------------------------------------------------------------------------
+// TripAdvisor enrichment (Apify) — slow (~60s), so it runs non-blocking after
+// a search and merges its extra hotels/activities/restaurants into that
+// search's cached payload. The first search for a destination returns at its
+// usual speed; subsequent searches (or a background refresh) include the
+// TripAdvisor results. Deduped per destination for 6h so it runs at most once.
+// ---------------------------------------------------------------------------
+
+function scheduleTripAdvisorEnrichment(key: string, params: SearchParams): void {
+  const marker = `ta-enrich:${params.destination.toLowerCase().trim()}`;
+  if (cache.get(marker)) return;
+  cache.set(marker, 1, 6 * 60 * 60);
+
+  setImmediate(async () => {
+    try {
+      const ta = await scrapeApifyTripAdvisor(params.destination, params.checkin, params.checkout);
+      const total = ta.hotels.length + ta.activities.length + ta.restaurants.length;
+      if (!total) {
+        cache.del(marker); // nothing gained — allow a retry later
+        return;
+      }
+      const current = readCache(key);
+      if (!current) return;
+
+      const hotels = await fillHotelDistances(dedupeHotels([...current.hotels, ...ta.hotels]), params.destination);
+      writeCache(key, {
+        ...current,
+        hotels,
+        activities: dedupeByName([...current.activities, ...ta.activities]),
+        restaurants: dedupeByName([...current.restaurants, ...ta.restaurants]),
+      });
+      console.log(`[orchestrator] TripAdvisor enrichment merged ${total} items into ${params.destination}`);
+    } catch (err: unknown) {
+      cache.del(marker);
+      console.error('[orchestrator] TripAdvisor enrichment failed:', err instanceof Error ? err.message : err);
     }
   });
 }
@@ -260,6 +304,9 @@ export async function scrapeAllWithMeta(params: SearchParams): Promise<{
 }> {
   const key = makeCacheKey(params);
   const cached = readCache(key);
+
+  // Best-effort TripAdvisor enrichment (non-blocking, once per destination/6h).
+  scheduleTripAdvisorEnrichment(key, params);
 
   if (cached) {
     const ageMs = Date.now() - (cached.cached_at ?? 0);

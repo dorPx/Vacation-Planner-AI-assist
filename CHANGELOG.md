@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+### Added — Apify Skyscanner + TripAdvisor scrapers (more results)
+- **Skyscanner flights (Apify).** A new flight source via the `makework36/flight-price-scraper`
+  actor joins Google Flights, Sky-Scrapper, Duffel, and Ignav. Free-text origin/destination are
+  resolved to IATA codes (reusing Duffel's resolver), fares come back with booking deep links,
+  and results are merged/deduped into both the itinerary flight search and the Flights tab.
+  Fast (~5s), so it runs on the live path. Fail-soft.
+- **TripAdvisor hotels (Apify).** The `maxcopell/tripadvisor` actor adds more real hotels
+  (rating, review count, price range, coords, and a TripAdvisor booking link). Because the
+  actor is slow (~80s), it runs as a **non-blocking background enrichment**: a search returns
+  at its usual speed and schedules the actor, whose results are deduped, distance-annotated,
+  and merged into that search's cached payload — so subsequent searches for the destination
+  include them. Deduped per destination for 6h so it runs at most once. (The actor fills its
+  cap one type at a time and big cities are hotel-heavy, so it targets hotels — the primary
+  results surface; restaurants/attractions stay covered by Google Places. Flipping the
+  scraper's include* toggles is all it takes to pull the others.)
+- Both are powered by the shared `APIFY_API_KEY`; a small `runApifyActor` helper wraps Apify's
+  run-sync endpoint with bounded timeouts. New dev endpoints `/api/health/test/apify-skyscanner`
+  and `/api/health/test/apify-tripadvisor`.
+
 ### Changed — Itinerary tab is now a conversational AI planner; new Flights tab
 - **Plan with AI.** The Itinerary tab's manual drag-and-drop day builder is replaced by a
   chatbot. You describe a trip ("2 days in Lisbon — seafood and viewpoints"); the backend

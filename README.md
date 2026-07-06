@@ -7,17 +7,18 @@ the result.
 
 ## Features
 
-- **Multi-source hotel search** — Booking.com, Hotels.com, Airbnb, TripAdvisor, Google
-  Places, and **LiteAPI** (real content + live rates from 2M+ properties in one call),
-  deduplicated and normalized. LiteAPI is the accuracy-first source: its hotels are floated
-  to the top of the list and win the merge (its content becomes the base record, with a
-  matching Booking.com entry contributing a booking link). Filters are booking.com-style
+- **Multi-source hotel search** — Booking.com, Hotels.com, Airbnb, TripAdvisor (RapidAPI
+  **and** an Apify scraper that enriches results in the background), Google Places, and
+  **LiteAPI** (real content + live rates from 2M+ properties in one call), deduplicated and
+  normalized. LiteAPI is the accuracy-first source: its hotels are floated to the top of the
+  list and win the merge (its content becomes the base record, with a matching Booking.com
+  entry contributing a booking link). Filters are booking.com-style
   (budget slider,
   review-score buckets with live counts, amenities, source) and sorting, plus a
   **"Load more hotels"** button that pages in 20 more Booking.com results at a time
   (filters and sort preserved)
 - **Flights** (optional "flying from" field) via Google Flights / Sky Scrapper / Duffel /
-  Ignav — all merged and deduplicated into one flight list
+  Ignav / **Skyscanner** (Apify) — all merged and deduplicated into one flight list
 - **Activities & restaurants** from Google Places and TripAdvisor
 - **Ranking that recommends, not upsells** — the default "top picks" sort blends rating,
   price, and distance from center; sort also by highest rated, distance, or price
@@ -132,7 +133,7 @@ npm run dev        # backend :4000 + frontend :3000 via concurrently
 | `OPENROUTER_CLASSIFIER_MODEL` | Cheap model for interest classification | e.g. `anthropic/claude-haiku-4.5` |
 | `GOOGLE_MAPS_API_KEY` | Backend: Places search (hotels/activities/restaurants), Geocoding backfill, place photos | [Google Cloud console](https://console.cloud.google.com) → create key; enable **Places API (New)** and **Geocoding API** |
 | `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | Frontend: the interactive map | Same console; enable **Maps JavaScript API**. Can be the same key or (better) a separate one |
-| `APIFY_API_KEY` | Google Places crawler for activities/restaurants | [apify.com](https://apify.com) → Settings → API tokens |
+| `APIFY_API_KEY` | Skyscanner flight scraper (`makework36/flight-price-scraper`) and TripAdvisor scraper (`maxcopell/tripadvisor`) — extra flight and hotel results | [apify.com](https://apify.com) → Settings → API tokens |
 | `DUFFEL_API_KEY` | Flight offers | [duffel.com](https://duffel.com) — a `duffel_test_` key returns realistic synthetic offers |
 | `IGNAV_API_KEY` | Flight fares (an extra flight source; **flights only**, no hotels) | [ignav.com](https://ignav.com) — free tier is 1,000 requests; leave blank to disable |
 | `LITEAPI_API_KEY` | Hotel content + live rates (name, photo, geo, guest score, price — the richest hotel source) | [liteapi.travel](https://liteapi.travel) — a `sand_` key returns sandbox test data, a prod key real inventory; leave blank to disable |
