@@ -196,11 +196,13 @@ export function filterHotels(hotels: HotelResult[], filters: ResultFilters): Hot
     }
   }
 
-  // LiteAPI is the accuracy-first source (real content + live rates), so float
-  // its hotels above the rest while preserving the chosen order within each
-  // group (Array.filter is stable, so both groups keep their sorted order).
-  const isLite = (h: HotelResult) => h.source === 'liteapi';
-  return [...sorted.filter(isLite), ...sorted.filter((h) => !isLite(h))];
+  // LiteAPI (real content + live rates) and the Apify-scraped sources are the
+  // accuracy-first providers, so float their hotels above the rest while
+  // preserving the chosen order within each group (Array.filter is stable, so
+  // both groups keep their sorted order). Apify hotels carry an `apify-` id
+  // prefix; LiteAPI ones are identified by source.
+  const isPriority = (h: HotelResult) => h.source === 'liteapi' || h.id.startsWith('apify-');
+  return [...sorted.filter(isPriority), ...sorted.filter((h) => !isPriority(h))];
 }
 
 /** Applies the review-score + source filters generically to activities/restaurants, which share those fields with hotels. */

@@ -17,20 +17,104 @@ interface HealthResponse {
   version: string;
 }
 
-const SERVICE_LABELS: Record<string, string> = {
-  openrouter: 'OpenRouter',
-  apify: 'Apify',
-  rapidapi_tripadvisor: 'RapidAPI: TripAdvisor',
-  rapidapi_booking: 'RapidAPI: Booking.com',
-  rapidapi_flights: 'RapidAPI: Google Flights',
-  rapidapi_hotels: 'RapidAPI: Hotels',
-  rapidapi_hotels_com_provider: 'RapidAPI: Hotels.com Provider',
-  rapidapi_airbnb: 'RapidAPI: Airbnb',
-  duffel: 'Duffel',
-  google: 'Google',
-  sqlite: 'SQLite',
-  cache: 'Cache',
-};
+// Every scraper/data test the dev dashboard can run, keyed by its
+// /api/health/test/<key> route.
+type ScraperKey =
+  | 'apify'
+  | 'apify-skyscanner'
+  | 'apify-tripadvisor'
+  | 'rapidapi-tripadvisor'
+  | 'rapidapi-booking'
+  | 'rapidapi-flights'
+  | 'rapidapi-hotels'
+  | 'rapidapi-hotels-com-provider'
+  | 'rapidapi-airbnb'
+  | 'duffel'
+  | 'ignav'
+  | 'liteapi'
+  | 'google';
+
+// One API/method behind a website — an optional live health flag (a status
+// dot from /api/health) and/or a runnable test (/api/health/test/<key>).
+interface ApiCheck {
+  label: string;
+  healthKey?: string;
+  testKey?: ScraperKey;
+}
+
+// APIs grouped by the WEBSITE the data actually comes from, rather than by
+// which vendor API (RapidAPI, Apify, …) fetches it.
+interface ProviderGroup {
+  website: string;
+  checks: ApiCheck[];
+}
+
+const PROVIDER_GROUPS: ProviderGroup[] = [
+  {
+    website: 'Booking.com',
+    checks: [
+      { label: 'RapidAPI · booking-com15', healthKey: 'rapidapi_booking', testKey: 'rapidapi-booking' },
+      { label: 'Apify · booking scraper', healthKey: 'apify', testKey: 'apify' },
+    ],
+  },
+  {
+    website: 'LiteAPI',
+    checks: [{ label: 'LiteAPI · content + live rates', healthKey: 'liteapi', testKey: 'liteapi' }],
+  },
+  {
+    website: 'TripAdvisor',
+    checks: [
+      { label: 'RapidAPI · tripadvisor16', healthKey: 'rapidapi_tripadvisor', testKey: 'rapidapi-tripadvisor' },
+      { label: 'Apify · maxcopell/tripadvisor', testKey: 'apify-tripadvisor' },
+    ],
+  },
+  {
+    website: 'Hotels.com',
+    checks: [
+      { label: 'RapidAPI · hotels4', healthKey: 'rapidapi_hotels', testKey: 'rapidapi-hotels' },
+      { label: 'RapidAPI · hotels-com-provider', healthKey: 'rapidapi_hotels_com_provider', testKey: 'rapidapi-hotels-com-provider' },
+    ],
+  },
+  {
+    website: 'Airbnb',
+    checks: [{ label: 'RapidAPI · airbnb19', healthKey: 'rapidapi_airbnb', testKey: 'rapidapi-airbnb' }],
+  },
+  {
+    website: 'Google',
+    checks: [
+      { label: 'Google Places', healthKey: 'google', testKey: 'google' },
+      { label: 'RapidAPI · google-flights2', healthKey: 'rapidapi_flights', testKey: 'rapidapi-flights' },
+    ],
+  },
+  {
+    website: 'Skyscanner',
+    checks: [{ label: 'Apify · flight-price-scraper', testKey: 'apify-skyscanner' }],
+  },
+  {
+    website: 'Duffel',
+    checks: [{ label: 'Duffel · flights', healthKey: 'duffel', testKey: 'duffel' }],
+  },
+  {
+    website: 'Ignav',
+    checks: [{ label: 'Ignav · flights', healthKey: 'ignav', testKey: 'ignav' }],
+  },
+  {
+    website: 'OpenRouter (AI)',
+    checks: [{ label: 'OpenRouter · chat + stream', healthKey: 'openrouter' }],
+  },
+  {
+    website: 'System',
+    checks: [
+      { label: 'SQLite', healthKey: 'sqlite' },
+      { label: 'In-memory cache', healthKey: 'cache' },
+    ],
+  },
+];
+
+// testKey -> its display label, for rendering result blocks.
+const TEST_LABELS: Partial<Record<ScraperKey, string>> = Object.fromEntries(
+  PROVIDER_GROUPS.flatMap((g) => g.checks.filter((c) => c.testKey).map((c) => [c.testKey, c.label]))
+);
 
 function addDays(days: number): string {
   const d = new Date();
@@ -101,16 +185,28 @@ function HealthCard() {
       {!health ? (
         <p className="text-sm text-brand-mid">Checking…</p>
       ) : (
-        <div className="space-y-2">
-          {Object.entries(health.services).map(([key, ok]) => (
-            <div key={key} className="flex items-center justify-between text-sm py-1.5 border-b border-beige-100 last:border-0">
-              <div className="flex items-center gap-2">
-                <span className={`w-2.5 h-2.5 rounded-full ${ok ? 'bg-emerald-500' : 'bg-red-500'}`} />
-                <span className="text-brand-dark">{SERVICE_LABELS[key] ?? key}</span>
+        <div className="space-y-3">
+          {PROVIDER_GROUPS.map((group) => {
+            const checks = group.checks.filter((c) => c.healthKey && c.healthKey in health.services);
+            if (!checks.length) return null;
+            return (
+              <div key={group.website}>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-brand-mid mb-0.5">{group.website}</p>
+                {checks.map((c) => {
+                  const ok = health.services[c.healthKey!];
+                  return (
+                    <div key={c.healthKey} className="flex items-center justify-between text-sm py-1 pl-1">
+                      <div className="flex items-center gap-2">
+                        <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${ok ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                        <span className="text-brand-dark">{c.label}</span>
+                      </div>
+                      <span className="text-xs text-brand-mid">{formatTime(lastChecked)}</span>
+                    </div>
+                  );
+                })}
               </div>
-              <span className="text-xs text-brand-mid">{formatTime(lastChecked)}</span>
-            </div>
-          ))}
+            );
+          })}
           <div className="pt-3 mt-1 border-t border-beige-200 text-xs text-brand-mid space-y-1">
             <p>Uptime: {health.uptime_seconds}s</p>
             <p>Version: {health.version}</p>
@@ -254,41 +350,6 @@ function TestSearchCard() {
 // Scraper test buttons
 // ---------------------------------------------------------------------------
 
-type ScraperKey =
-  | 'apify'
-  | 'rapidapi-tripadvisor'
-  | 'rapidapi-booking'
-  | 'rapidapi-flights'
-  | 'rapidapi-hotels'
-  | 'rapidapi-hotels-com-provider'
-  | 'rapidapi-airbnb'
-  | 'duffel'
-  | 'google';
-
-const SCRAPER_LABELS: Record<ScraperKey, string> = {
-  apify: 'Apify',
-  'rapidapi-tripadvisor': 'RapidAPI: TripAdvisor',
-  'rapidapi-booking': 'RapidAPI: Booking.com',
-  'rapidapi-flights': 'RapidAPI: Google Flights',
-  'rapidapi-hotels': 'RapidAPI: Hotels',
-  'rapidapi-hotels-com-provider': 'RapidAPI: Hotels.com Provider',
-  'rapidapi-airbnb': 'RapidAPI: Airbnb',
-  duffel: 'Duffel Flights',
-  google: 'Google',
-};
-
-const SCRAPER_KEYS: ScraperKey[] = [
-  'apify',
-  'rapidapi-tripadvisor',
-  'rapidapi-booking',
-  'rapidapi-flights',
-  'rapidapi-hotels',
-  'rapidapi-hotels-com-provider',
-  'rapidapi-airbnb',
-  'duffel',
-  'google',
-];
-
 function ScraperTestsCard() {
   const [loadingKey, setLoadingKey] = useState<ScraperKey | null>(null);
   const [results, setResults] = useState<Partial<Record<ScraperKey, unknown>>>({});
@@ -308,26 +369,39 @@ function ScraperTestsCard() {
 
   return (
     <div className="bg-white border border-beige-300 rounded-xl p-5">
-      <h2 className="text-sm font-semibold text-brand-black mb-4">Scraper Tests</h2>
-      <div className="flex flex-wrap gap-2 mb-4">
-        {SCRAPER_KEYS.map((key) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => runTest(key)}
-            disabled={loadingKey === key}
-            className="border border-beige-300 hover:bg-beige-100 disabled:opacity-50 text-sm font-medium text-brand-black px-3 py-1.5 rounded-lg transition-colors"
-          >
-            {loadingKey === key ? 'Testing…' : `Test ${SCRAPER_LABELS[key]}`}
-          </button>
-        ))}
+      <h2 className="text-sm font-semibold text-brand-black mb-1">Scraper Tests</h2>
+      <p className="text-xs text-brand-mid mb-4">Grouped by the website each API pulls from.</p>
+
+      <div className="space-y-3">
+        {PROVIDER_GROUPS.map((group) => {
+          const tests = group.checks.filter((c) => c.testKey);
+          if (!tests.length) return null;
+          return (
+            <div key={group.website}>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-brand-mid mb-1.5">{group.website}</p>
+              <div className="flex flex-wrap gap-2">
+                {tests.map((c) => (
+                  <button
+                    key={c.testKey}
+                    type="button"
+                    onClick={() => runTest(c.testKey!)}
+                    disabled={loadingKey === c.testKey}
+                    className="border border-beige-300 hover:bg-beige-100 disabled:opacity-50 text-xs font-medium text-brand-black px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    {loadingKey === c.testKey ? 'Testing…' : c.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
-      {SCRAPER_KEYS.map(
+      {(Object.keys(results) as ScraperKey[]).map(
         (key) =>
           results[key] !== undefined && (
-            <div key={key} className="mb-3">
-              <p className="text-xs font-semibold text-brand-mid mb-1">{SCRAPER_LABELS[key]} result</p>
+            <div key={key} className="mt-3">
+              <p className="text-xs font-semibold text-brand-mid mb-1">{TEST_LABELS[key] ?? key} result</p>
               <pre className="bg-beige-50 border border-beige-200 rounded-lg p-3 text-xs overflow-auto max-h-64 whitespace-pre-wrap">
                 {JSON.stringify(results[key], null, 2)}
               </pre>

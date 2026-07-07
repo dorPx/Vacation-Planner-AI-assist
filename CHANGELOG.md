@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Changed — Apify + LiteAPI hotels rank first; dev dashboard grouped by website
+- **Accuracy-first hotels float to the top.** The results list now surfaces both LiteAPI
+  and Apify-scraped hotels (TripAdvisor via `maxcopell/tripadvisor`, identified by their
+  `apify-` id prefix) above the other sources, preserving the chosen sort within each tier.
+- **Dev dashboard grouped by source website.** Health Status and Scraper Tests are now
+  organized by the website the data actually comes from (Booking.com, LiteAPI, TripAdvisor,
+  Hotels.com, Airbnb, Google, Skyscanner, Duffel, Ignav, OpenRouter, System), each listing
+  the specific API/method (e.g. "RapidAPI · booking-com15", "Apify · maxcopell/tripadvisor").
+  Adds the previously-missing LiteAPI, Ignav, Apify-TripAdvisor and Apify-Skyscanner test
+  buttons and health labels.
+
 ### Changed — Home redesign + 4 retention features
 Research-grounded redesign (imagery, social proof, honest urgency, personalization) to make
 the home page a reason to return. All sections are data-driven, fail-soft, and hide when empty.
