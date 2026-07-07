@@ -1,12 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { HotelResult, PricePoint } from '../../../shared/types';
 import { AmenityChip } from './shared';
 import { useSearch } from '@/context/SearchContext';
 import { useFavorites } from '@/context/FavoritesContext';
 import { useCurrency } from '@/context/CurrencyContext';
 import { sourceLabel } from '@/lib/sourceLabel';
+import { isWatched, toggleWatch } from '@/lib/priceWatch';
+import { showToast } from './toast';
 import { TrendBadge, computeTrend } from './PriceTrend';
 
 export interface HotelCardProps extends HotelResult {
@@ -83,6 +85,22 @@ export default function HotelCard(props: HotelCardProps) {
   } = props;
   const [imgError, setImgError] = useState(false);
   const showImage = image_url && !imgError;
+
+  // Price watch (localStorage) — read after mount so SSR markup matches.
+  const [watched, setWatched] = useState(false);
+  useEffect(() => {
+    setWatched(isWatched(id));
+  }, [id]);
+
+  function handleToggleWatch() {
+    const nowWatched = toggleWatch(hotel, lastParams?.destination ?? '');
+    setWatched(nowWatched);
+    showToast(
+      nowWatched
+        ? `Watching ${name} — we'll flag real price drops when you return`
+        : `Stopped watching ${name}`
+    );
+  }
   const hasPrice = price_per_night > 0;
   const hasRating = rating > 0;
   const priceDropped = hasPrice && typeof previousPrice === 'number' && previousPrice > price_per_night;
@@ -139,6 +157,32 @@ export default function HotelCard(props: HotelCardProps) {
             {sourceLabel(source)}
           </span>
         </button>
+        {hasPrice && (
+          <button
+            type="button"
+            onClick={handleToggleWatch}
+            aria-pressed={watched}
+            aria-label={watched ? `Stop watching the price of ${name}` : `Watch the price of ${name}`}
+            title={watched ? 'Watching price — click to stop' : 'Watch price for drops'}
+            className="absolute top-2 right-12 w-9 h-9 flex items-center justify-center rounded-full bg-white/90 shadow hover:bg-white transition-colors"
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              className={watched ? 'text-emerald-600' : 'text-brand-mid'}
+              fill={watched ? 'currentColor' : 'none'}
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+              <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+            </svg>
+          </button>
+        )}
         <button
           type="button"
           onClick={() => toggleFavorite(hotel)}

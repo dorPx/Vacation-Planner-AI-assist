@@ -676,7 +676,7 @@ export default function SearchBar() {
           Returning visitors see their recent searches; new ones see popular picks. */}
       {!results && recent.length > 0 && (
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium text-brand-dark/70">Recent:</span>
+          <span className="text-xs font-medium text-[rgba(255,255,255,0.85)]">Recent:</span>
           {recent.map((r) => (
             <button
               key={`${r.destination}|${r.checkin}|${r.checkout}`}
@@ -697,7 +697,7 @@ export default function SearchBar() {
 
       {!results && recent.length === 0 && (
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium text-brand-dark/70">Popular:</span>
+          <span className="text-xs font-medium text-[rgba(255,255,255,0.85)]">Popular:</span>
           {POPULAR_DESTINATIONS.map((city) => (
             <button
               key={city}

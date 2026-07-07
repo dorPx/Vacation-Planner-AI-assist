@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import ThemeToggle from '@/components/ThemeToggle';
+import WatchBell from '@/components/WatchBell';
 import { useCurrency, CURRENCIES, type Currency } from '@/context/CurrencyContext';
 
 function PlaneIcon() {
@@ -74,6 +75,7 @@ export default function Header() {
               ))}
             </select>
           </label>
+          <WatchBell />
           <ThemeToggle />
         </nav>
       </div>

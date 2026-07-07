@@ -11,6 +11,7 @@ import {
   PricePoint,
   PackingList,
   HotelDetails,
+  PriceDeal,
 } from '../../shared/types';
 import type { ModelOption } from '../context/ModelContext';
 import type { SearchResults } from '../context/SearchContext';
@@ -171,6 +172,15 @@ export const api = {
       return Array.isArray(data.days) ? data.days : [];
     } catch {
       return [];
+    }
+  },
+
+  // Home-page deals feed + per-destination price floors — real recorded data.
+  getDeals: async (): Promise<{ deals: PriceDeal[]; min_prices: Record<string, number> }> => {
+    try {
+      return await get<{ deals: PriceDeal[]; min_prices: Record<string, number> }>('/api/deals');
+    } catch {
+      return { deals: [], min_prices: {} };
     }
   },
 

@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+### Changed — Home redesign + 4 retention features
+Research-grounded redesign (imagery, social proof, honest urgency, personalization) to make
+the home page a reason to return. All sections are data-driven, fail-soft, and hide when empty.
+- **Photographic hero.** Full-bleed destination photo (rotates per visit, dark scrim for AA
+  contrast), new copy — "Every price. One search." — and a trust bar ("6+ sources compared
+  live · Prices never marked up · Real recorded price drops"). Collapses to a compact band
+  once results are showing, keeping the results view exactly as dense as before.
+- **Deals right now.** New `GET /api/deals` finds hotels whose newest recorded price is ≥8%
+  below an earlier observation (30-day window, `price_history` table) — real recorded drops,
+  never invented urgency. Cards show ↓%, was→now, and a one-click destination search.
+- **Where to next? gallery.** Eight destination photo cards (keyless Unsplash hotlinks) with
+  live "from $X/night" floors from recorded prices; one click runs the search via the
+  URL-rehydrate path.
+- **Your next trip.** Nearest upcoming saved trip surfaces with a countdown ("12 days to
+  go"), forecast chips, packing-list progress, and open/calendar actions.
+- **Price watch.** A bell toggle on hotel cards and the detail modal stores watches locally;
+  on later visits they're checked against recorded price history and real drops (≥5%)
+  surface as a header bell badge plus a "Since your last visit" strip with dismiss
+  (re-baseline) actions. No accounts or email required.
+- Fixed a home-screen 404 caused by concurrent dev servers sharing and corrupting
+  `frontend/.next` (clean rebuild; one dev server per checkout).
+
 ### Added — Apify Skyscanner + TripAdvisor scrapers (more results)
 - **Skyscanner flights (Apify).** A new flight source via the `makework36/flight-price-scraper`
   actor joins Google Flights, Sky-Scrapper, Duffel, and Ignav. Free-text origin/destination are

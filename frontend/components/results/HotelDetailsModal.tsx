@@ -7,6 +7,8 @@ import { sourceLabel } from '@/lib/sourceLabel';
 import { useCurrency } from '@/context/CurrencyContext';
 import { useSearch } from '@/context/SearchContext';
 import { api } from '@/lib/api';
+import { isWatched, toggleWatch } from '@/lib/priceWatch';
+import { showToast } from './toast';
 import { Sparkline, TrendBadge, computeTrend } from './PriceTrend';
 
 // Pre-booking detail view for one hotel. For a LiteAPI hotel it fetches rich
@@ -35,6 +37,10 @@ export default function HotelDetailsModal({ hotel, history, onClose }: HotelDeta
   const [details, setDetails] = useState<HotelDetails | null>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [activePhoto, setActivePhoto] = useState(0);
+  const [watched, setWatched] = useState(false);
+  useEffect(() => {
+    setWatched(isWatched(hotel.id));
+  }, [hotel.id]);
 
   const isLite = hotel.source === 'liteapi' || hotel.id.startsWith('liteapi-');
 
@@ -326,6 +332,24 @@ export default function HotelDetailsModal({ hotel, history, onClose }: HotelDeta
 
           {/* CTA */}
           <div className="flex justify-end gap-2 pt-1">
+            {hasPrice && (
+              <button
+                type="button"
+                aria-pressed={watched}
+                onClick={() => {
+                  const nowWatched = toggleWatch(hotel, lastParams?.destination ?? '');
+                  setWatched(nowWatched);
+                  showToast(nowWatched ? `Watching ${hotel.name} for price drops` : `Stopped watching ${hotel.name}`);
+                }}
+                className={`text-sm font-semibold px-4 py-2 rounded-lg border transition-colors ${
+                  watched
+                    ? 'bg-emerald-100 border-emerald-300 text-emerald-700'
+                    : 'text-brand-black border-beige-300 hover:bg-beige-100'
+                }`}
+              >
+                {watched ? 'Watching ✓' : 'Watch price'}
+              </button>
+            )}
             <button
               type="button"
               onClick={onClose}

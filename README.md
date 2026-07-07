@@ -7,6 +7,15 @@ the result.
 
 ## Features
 
+- **A home page built to bring you back** — a full-bleed photographic hero ("Every price.
+  One search."), a trust bar, and four data-driven sections that each hide when empty:
+  **Deals right now** (real recorded price drops from the price-history table — honest
+  urgency, not marketing), **Where to next?** (destination gallery with live "from
+  $X/night" floors), **Your next trip** (countdown, forecast, and packing progress for
+  your nearest saved trip), and **price-watch alerts** ("Since your last visit, 2 watched
+  hotels dropped") with a header bell badge. Watch any hotel from its card or detail
+  modal — all local, no account needed.
+
 - **Multi-source hotel search** — Booking.com, Hotels.com, Airbnb, TripAdvisor (RapidAPI
   **and** an Apify scraper that enriches results in the background), Google Places, and
   **LiteAPI** (real content + live rates from 2M+ properties in one call), deduplicated and

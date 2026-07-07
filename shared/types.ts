@@ -148,6 +148,19 @@ export interface PricePoint {
   observed_at: number;
 }
 
+/** A real, recorded price drop surfaced on the home page's deals feed. */
+export interface PriceDeal {
+  /** Lowercased destination as recorded in price_history. */
+  destination: string;
+  /** Lowercased hotel name as recorded in price_history. */
+  hotel_name: string;
+  was_price: number;
+  now_price: number;
+  /** Positive percentage, e.g. 14 for a 14% drop. */
+  drop_pct: number;
+  observed_at: number;
+}
+
 export interface PackingList {
   categories: { name: string; items: string[] }[];
   /** "ai" when OpenRouter produced it, "fallback" for the deterministic list. */
