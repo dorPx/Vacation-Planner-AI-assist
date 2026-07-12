@@ -14,10 +14,12 @@ import type { HotelResult, HotelDetails, HotelRoomOffer } from '../../../shared/
 // upstream error degrades to zero hotels, never an error.
 //
 // Prices come back as the whole-stay retail total in USD (the app's
-// authoritative currency; the UI converts for display). booking_url is left
-// empty because LiteAPI has no public deep link — booking runs through its
-// prebook/book API, which is out of scope here — so the card shows the price
-// and details without inventing a link.
+// authoritative currency; the UI converts for display). LiteAPI has no public
+// deep link of its own (booking runs through its prebook/book API, out of
+// scope here), so booking_url points at the hotel's REAL Google listing —
+// google.com/travel/search resolves a "name, city" query straight to the
+// property's Google Hotels page with photos, reviews, and a live availability
+// calendar. Real listing, keyless, never invented.
 
 const BASE = 'https://api.liteapi.travel/v3.0';
 const SEARCH_RADIUS_M = 20_000;
@@ -72,11 +74,19 @@ interface LiteApiHotelContent {
   main_photo?: string;
   thumbnail?: string;
   address?: string;
+  city_name?: string;
   latitude?: number;
   longitude?: number;
   rating?: number; // guest review score, 0-10
   stars?: number; // star category, 0-5
   review_count?: number | null;
+}
+
+/** The hotel's real Google listing (Google Hotels page: details, photos,
+ *  reviews, and a live availability calendar). A "name, city" query resolves
+ *  straight to the property. */
+function googleListingUrl(name: string, city: string): string {
+  return `https://www.google.com/travel/search?q=${encodeURIComponent(`${name}, ${city}`.trim())}`;
 }
 
 interface LiteApiRate {
@@ -124,16 +134,23 @@ function summariseOffer(entry: LiteApiRateEntry): { total: number; amenities: st
   return { total: cheapest.amount, amenities };
 }
 
-function normalise(content: LiteApiHotelContent, entry: LiteApiRateEntry, nights: number): HotelResult | null {
+function normalise(
+  content: LiteApiHotelContent,
+  entry: LiteApiRateEntry,
+  nights: number,
+  destination: string
+): HotelResult | null {
   const offer = summariseOffer(entry);
   if (!offer) return null;
 
   // LiteAPI guest score is 0-10; the app normalises hotel ratings to 0-5.
   const rating = content.rating ? Math.min(5, Math.round((content.rating / 2) * 10) / 10) : 0;
 
+  const name = content.name ?? 'Unknown hotel';
+
   return {
     id: `liteapi-${content.id}`,
-    name: content.name ?? 'Unknown hotel',
+    name,
     price_per_night: Math.round(offer.total / nights),
     rating,
     review_count: content.review_count ?? 0,
@@ -142,7 +159,8 @@ function normalise(content: LiteApiHotelContent, entry: LiteApiRateEntry, nights
     lng: content.longitude ?? 0,
     image_url: content.main_photo ?? content.thumbnail ?? '',
     source: 'liteapi',
-    booking_url: '', // no public deep link — see file header
+    // The hotel's real Google listing — details + live availability.
+    booking_url: googleListingUrl(name, content.city_name ?? destination),
   };
 }
 
@@ -187,7 +205,7 @@ export async function scrapeLiteApiHotels(
     const hotels = (res.data.data ?? [])
       .map((entry) => {
         const content = contentById.get(entry.hotelId);
-        return content ? normalise(content, entry, nights) : null;
+        return content ? normalise(content, entry, nights, destination) : null;
       })
       .filter((h): h is HotelResult => h !== null)
       .slice(0, MAX_HOTELS);
